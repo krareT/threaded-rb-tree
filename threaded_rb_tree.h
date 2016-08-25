@@ -1091,6 +1091,23 @@ node_t *threaded_rb_tree_move_next(node_t *node, node_t *node_array)
         return node;
     }
 }
+template<class node_t>
+node_t *threaded_rb_tree_move_prev(node_t *node, node_t *node_array)
+{
+    if(!node->left_is_child())
+    {
+        return node_array + node->left_get_link();
+    }
+    else
+    {
+        node = node_array + node->left_get_link();
+        while(node->right_is_child())
+        {
+            node = node_array + node->right_get_link();
+        }
+        return node;
+    }
+}
 
 
 

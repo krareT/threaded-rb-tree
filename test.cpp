@@ -58,6 +58,17 @@ int main(int argc, const char * argv[])
             std::cout << data[begin - arr] << " ";
         }
         std::cout << std::endl;
+        
+        node_t *rbegin = arr + arr[root.nil].right_get_link();
+        node_t *rend = arr + root.nil;
+        
+        
+        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr))
+        {
+            std::cout << data[rbegin - arr] << " ";
+        }
+        
+        std::cout << std::endl;
     }
     
     return 0;
