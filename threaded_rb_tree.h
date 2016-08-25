@@ -1,7 +1,7 @@
 
 #include <stdexcept>
 #include <cstdint>
-
+#include <cassert>
 
 
 
@@ -609,9 +609,9 @@ struct threaded_rb_tree_node_t
     
     index_type children[2];
     
-    static index_type constexpr color_bit_mask = index_type(1) << (sizeof(index_type) * 8 - 1);
+    static index_type constexpr flag_bit_mask = index_type(1) << (sizeof(index_type) * 8 - 1);
     static index_type constexpr type_bit_mask = index_type(1) << (sizeof(index_type) * 8 - 2);
-    static index_type constexpr full_bit_mask = color_bit_mask | type_bit_mask;
+    static index_type constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
     
     bool left_is_child() const
     {
@@ -624,19 +624,19 @@ struct threaded_rb_tree_node_t
     
     void left_set_child(index_type const &link)
     {
-        children[0] = (children[0] & color_bit_mask) | link;
+        children[0] = (children[0] & flag_bit_mask) | link;
     }
     void right_set_child(index_type const &link)
     {
-        children[1] = link;
+        children[1] = (children[1] & flag_bit_mask) | link;
     }
     void left_set_thread(index_type const &link)
     {
-        children[0] = (children[0] & color_bit_mask) | type_bit_mask | link;
+        children[0] = (children[0] & flag_bit_mask) | type_bit_mask | link;
     }
     void right_set_thread(index_type const &link)
     {
-        children[1] = type_bit_mask | link;
+        children[1] = (children[1] & flag_bit_mask) | type_bit_mask | link;
     }
     
     index_type left_get_link() const
@@ -656,22 +656,38 @@ struct threaded_rb_tree_node_t
         children[1] = (children[1] & full_bit_mask) | link;
     }
     
+    bool is_nil() const
+    {
+        return (children[1] & flag_bit_mask) != 0;
+    }
+    void set_nil(bool nil)
+    {
+        if(nil)
+        {
+            children[1] |= flag_bit_mask;
+        }
+        else
+        {
+            children[1] &= ~flag_bit_mask;
+        }
+    }
+    
     bool is_black() const
     {
-        return (children[0] & color_bit_mask) == 0;
+        return (children[0] & flag_bit_mask) == 0;
     }
     void set_black()
     {
-        children[0] |= color_bit_mask;
+        children[0] |= flag_bit_mask;
     }
     
     bool is_red() const
     {
-        return (children[0] & color_bit_mask) != 0;
+        return (children[0] & flag_bit_mask) != 0;
     }
     void set_red()
     {
-        children[0] &= ~color_bit_mask;
+        children[0] &= ~flag_bit_mask;
     }
 };
 
@@ -679,10 +695,21 @@ template<class node_t>
 struct threaded_rb_tree_root_t
 {
     typedef node_t node_type;
-    typedef typename node_type::index_t index_type;
+    typedef typename node_type::index_type index_type;
+    
+    threaded_rb_tree_root_t(node_type *node_array, size_t length)
+    {
+        assert(length > 0);
+        nil = index_type(length - 1);
+        node_type *nil_node = node_array + nil;
+        nil_node->set_black();
+        nil_node->set_nil(true);
+        nil_node->left_set_thread(nil);
+        nil_node->right_set_thread(nil);
+    }
     
     index_type root;
-    node_type most;
+    index_type nil;
     size_t count;
 };
 
@@ -690,20 +717,21 @@ template<class node_t, size_t max_depth>
 struct threaded_rb_tree_stack_t
 {
     typedef node_t node_type;
-    typedef typename node_type::index_t index_type;
+    typedef typename node_type::index_type index_type;
     typedef threaded_rb_tree_root_t<node_type> root_type;
     
     static index_type constexpr dir_bit_mask = index_type(1) << (sizeof(index_type) * 8 - 1);
     
     threaded_rb_tree_stack_t(root_type &_root)
     {
-        height = 0;
-        hlow = 0;
+        height = 1;
+//        hlow = 0;
         root = &_root;
+        stack[0] = index_type(root->nil);
     }
     
     size_t height;
-    size_t hlow;
+//    size_t hlow;
     root_type *root;
     index_type stack[max_depth];
     
@@ -715,7 +743,7 @@ struct threaded_rb_tree_stack_t
     {
         return (stack[i] & dir_bit_mask) != 0;
     }
-    bool get_index(size_t i) const
+    index_type get_index(size_t i) const
     {
         return stack[i] & ~dir_bit_mask;
     }
@@ -730,62 +758,142 @@ struct threaded_rb_tree_stack_t
 };
 
 template<class node_t, class comparator_t, size_t max_depth>
-bool threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, size_t index, comparator_t const &comparator)
+void threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
 {
     typedef node_t node_type;
-    typedef typename node_type::index_t index_type;
+    typedef typename node_type::index_type index_type;
     
-    bool existed = false;
+//    bool existed = false;
     if(stack.root->count != 0)
     {
-        index_type p = node_array[stack].root->root;
+        index_type p = stack.root->root;
         while(true)
         {
             bool is_left = comparator(index, p);
-            if(!is_left)
-            {
-                stack.hlow = stack.height;
-                if(!comparator(p, index))
-                {
-                    existed = true;
-                }
-            }
             stack.push_index(p, is_left);
-            if(node_array[p].is_thread(is_left))
+            if(is_left)
             {
-                break;
+                if(!node_array[p].left_is_child())
+                {
+                    break;
+                }
+                p = node_array[p].left_get_link();
             }
-            p = node_array[p].get_child(is_left);
+            else
+            {
+                if(!node_array[p].right_is_child())
+                {
+                    break;
+                }
+                p = node_array[p].right_get_link();
+//                stack.hlow = stack.height;
+//                if(!comparator(p, index))
+//                {
+//                    existed = true;
+//                }
+            }
         }
     }
-    return existed;
+//    return existed;
 }
 
-//node_array[length] is used nil node
-template<class node_t, class comparator_t, size_t max_depth>
-void insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, size_t length, size_t index)
+template<class node_t, size_t max_depth>
+void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, size_t length, typename node_t::index_type const &index)
 {
     typedef node_t node_type;
-    typedef typename node_type::index_t index_type;
+    typedef typename node_type::index_type index_type;
     
-    if(stack.height == 0)
+    node_type *nil_node = node_array + stack.root->nil;
+    node_type *node = node_array + index;
+    ++stack.root->count;
+    node->set_nil(false);
+
+    if(stack.height == 1)
     {
-        node_type &node = node_array[index];
-        node.left_set_thread(index_type(length));
-        node.right_set_thread(index_type(length));
-        node.set_black();
-        stack.root->most.left_set_child(index);
-        stack.root->most.right_set_child(index);
-        ++stack.root->count;
+        node->left_set_thread(stack.root->nil);
+        node->right_set_thread(stack.root->nil);
+        node->set_black();
+        nil_node->left_set_thread(index);
+        nil_node->right_set_thread(index);
         return;
     }
-    size_t k = stack.height;
+    node->set_red();
+    size_t k = stack.height - 1;
+    index_type where = stack.get_index(k);
+    node_type *where_node = node_array + where;
+    if(stack.is_left(k))
+    {
+        node->left_set_thread(where_node->left_get_link());
+        node->right_set_thread(where);
+        where_node->left_set_child(index);
+        if(where == nil_node->left_get_link())
+        {
+            nil_node->left_set_thread(index);
+        }
+    }
+    else
+    {
+        node->right_set_thread(where_node->right_get_link());
+        node->left_set_thread(where);
+        where_node->right_set_child(index);
+        if(where == nil_node->right_get_link())
+        {
+            nil_node->right_set_thread(index);;
+        }
+    }
+
+    //TODO fix
+    node_array[stack.root->root].set_black();
+//    while(!is_black_(base_t::get_parent_(node)))
+//    {
+//        if(base_t::get_parent_(node) == base_t::get_left_(base_t::get_parent_(base_t::get_parent_(node))))
+//        {
+//            where = base_t::get_right_(base_t::get_parent_(base_t::get_parent_(node)));
+//            if(!is_black_(where))
+//            {
+//                set_black_(base_t::get_parent_(node), true);
+//                set_black_(where, true);
+//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
+//                node = base_t::get_parent_(base_t::get_parent_(node));
+//            }
+//            else
+//            {
+//                if(node == base_t::get_right_(base_t::get_parent_(node)))
+//                {
+//                    node = base_t::get_parent_(node);
+//                    base_t::template bst_rotate_<true>(node);
+//                }
+//                set_black_(base_t::get_parent_(node), true);
+//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
+//                base_t::template bst_rotate_<false>(base_t::get_parent_(base_t::get_parent_(node)));
+//            }
+//        }
+//        else
+//        {
+//            where = base_t::get_left_(base_t::get_parent_(base_t::get_parent_(node)));
+//            if(!is_black_(where))
+//            {
+//                set_black_(base_t::get_parent_(node), true);
+//                set_black_(where, true);
+//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
+//                node = base_t::get_parent_(base_t::get_parent_(node));
+//            }
+//            else
+//            {
+//                if(node == base_t::get_left_(base_t::get_parent_(node)))
+//                {
+//                    node = base_t::get_parent_(node);
+//                    base_t::template bst_rotate_<false>(node);
+//                }
+//                set_black_(base_t::get_parent_(node), true);
+//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
+//                base_t::template bst_rotate_<true>(base_t::get_parent_(base_t::get_parent_(node)));
+//            }
+//        }
+//    }
+//    set_black_(base_t::get_root_(), true);
     
-    
-    
-    
-    
-    
+    //            size_t k = stack.height;
     //            int dir = TPA_dir(k-1);
     //            struct trb_node* p = TPA_ptr(k-1);
     //            int doff = vtab->data_offset;
@@ -966,7 +1074,23 @@ void insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_arr
     
 }
 
-
+template<class node_t>
+node_t *threaded_rb_tree_move_next(node_t *node, node_t *node_array)
+{
+    if(!node->right_is_child())
+    {
+        return node_array + node->right_get_link();
+    }
+    else
+    {
+        node = node_array + node->right_get_link();
+        while(node->left_is_child())
+        {
+            node = node_array + node->left_get_link();
+        }
+        return node;
+    }
+}
 
 
 
