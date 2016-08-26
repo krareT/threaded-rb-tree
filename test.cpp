@@ -21,18 +21,19 @@ int main(int argc, const char * argv[])
     typedef threaded_rb_tree_node_t<uint32_t> node_t;
     typedef threaded_rb_tree_root_t<node_t> root_t;
     
-    size_t len = 100;
-    node_t *arr = new node_t[len + 1];
+    size_t constexpr len = 100;
+    node_t arr[len + 1];
     
     root_t root(arr, len + 1);
     
-    size_t *data = new size_t[len];
+    size_t data[len];
     
     std::mt19937 mt;
     std::uniform_int_distribution<double> uni(0, 1000);
     for(size_t i = 0; i < len; ++i)
     {
-        data[i] = uni(mt);
+        //data[i] = uni(mt);
+        data[i] = i;
     }
     
     for(size_t i = 0; i < len; ++i)

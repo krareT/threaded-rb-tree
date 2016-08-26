@@ -91,195 +91,6 @@
 //
 ///* Begin rotate */
 //
-//
-//static
-//void
-//trb_rotate_for_insert(const struct trb_vtab* vtab,
-//                      volatile struct trb_tree* tree,
-//                      struct trb_node* n, ///< new inserted node
-//                      struct trb_path_arg* arg)
-//{
-//    TRB_define_node_offset
-//    int k = arg->height;
-//    int dir = TPA_dir(k-1);
-//    struct trb_node* p = TPA_ptr(k-1);
-//    int doff = vtab->data_offset;
-//
-//    assert(arg->hlow <= k-1);
-//    /*
-//     *    p                    p
-//     *            ==>          |
-//     *                         n
-//     */
-//    TAG_set_thread(n, 0);
-//    TAG_set_thread(n, 1);
-//    TRB_set_link(n, dir, TRB_get_link(p, dir)); // thread
-//    
-//    if (nark_likely(tree->trb_root != NULL)) {
-//        TAG_set_child(p, dir);
-//        TRB_set_link(n, !dir, p); // thread ptr
-//    } else
-//        TRB_set_link(n, 1, NULL); // thread ptr
-//    
-//    assert(TAG_is_child(p, dir));
-//    TRB_set_link(p, dir, n);
-//    TRB_set_red(n);
-//    
-//    while (k >= 3 && TRB_is_red(TPA_ptr(k-1)))
-//    {
-//        struct trb_node* p3 = TPA_ptr(k-3);
-//        struct trb_node* p2 = TPA_ptr(k-2);
-//        struct trb_node* p1 = TPA_ptr(k-1);
-//        
-//        if (TPA_dir(k-2) == 0)
-//        {
-//            /*
-//             *		p1 == p2->left
-//             *		u  == p2->right
-//             */
-//            struct trb_node* u = TRB_get_link(p2, 1);
-//            if (TAG_is_child(p2, 1) && TRB_is_red(u))
-//            { // p2->right != NULL && u->color == red, if ignore thread
-//                TRB_set_black(p1);
-//                TRB_set_black(u);
-//                TRB_set_red(p2);
-//                k -= 2;
-//            }
-//            else // p2->right == NULL || u->color == red, if ignore thread
-//            {
-//                struct trb_node *y;
-//                
-//                if (TPA_dir(k-1) == 0) // p == p1->left, if ignore thread
-//                    y = p1;
-//                else
-//                {  //    p == p1->right
-//                    /*
-//                     *       p3                          p3
-//                     *       |                           |
-//                     *       p2                          p2
-//                     *      /  \          ==>           /  \
-//                     *     p1   u                      y    u
-//                     *    /  \                        / \
-//                     *   ?    y                      p1  Y1
-//                     *       / \                    /  \
-//                     *     Y0   Y1                 ?    Y0
-//                     */
-//                    y = TRB_get_link(p1, 1);
-//                    TRB_set_link(p1, 1, TRB_get_link(y, 0));
-//                    TRB_set_link(y , 0, p1);
-//                    TRB_set_link(p2, 0, y);
-//                    
-//                    if (TAG_is_thread(y, 0))
-//                    {
-//                        TAG_set_child(y, 0);
-//                        TAG_set_thread(p1, 1);
-//                        TRB_set_link(p1, 1, y);
-//                    }
-//                }
-//                /*
-//                 *               p3                            p3
-//                 *               |                             |
-//                 *               p2                            y
-//                 *              /  \              ==>       /     \
-//                 *             y    u                      p1      p2
-//                 *            / \                         /  \    /  \
-//                 *           p1  Y1                      n?  Y0  Y1   u
-//                 *          /  \
-//                 *         n?  Y0
-//                 */
-//                TRB_set_red(p2);
-//                TRB_set_black(y);
-//                
-//                TRB_set_link(p2, 0, TRB_get_link(y, 1));
-//                TRB_set_link(y, 1, p2);
-//                TRB_set_link(p3, TPA_dir(k-3), y);
-//                
-//                if (TAG_is_thread(y, 1))
-//                {
-//                    TAG_set_child(y, 1);
-//                    TAG_set_thread(p2, 0);
-//                    TRB_set_link(p2, 0, y);
-//                }
-//                assert(TRB_get_link(p2, 1) == u);
-//                break;
-//            }
-//        }
-//        else
-//        {
-//            /*
-//             *	p1 == p2->right
-//             *	u  == p2->left
-//             */
-//            struct trb_node* u = TRB_get_link(p2, 0);
-//            
-//            if (TAG_is_child(p2, 0) && TRB_is_red(u))
-//            {
-//                TRB_set_black(p1);
-//                TRB_set_black(u);
-//                TRB_set_red(p2);
-//                k -= 2;
-//            }
-//            else {
-//                struct trb_node *y;
-//                
-//                if (TPA_dir(k-1) == 1)
-//                    y = p1;
-//                else
-//                {
-//                    /*
-//                     *       p3                                  p3
-//                     *       |                                   |
-//                     *       p2                                  p2
-//                     *      /  \           ==>                  /  \
-//                     *     u   p1                              u    y
-//                     *        /  \                                 /  \
-//                     *       y    ?                               Y0  p1
-//                     *      / \                                      /  \
-//                     *     Y0 Y1                                    Y1   ?
-//                     */
-//                    y = TRB_get_link(p1, 0);
-//                    TRB_set_link(p1, 0, TRB_get_link(y, 1));
-//                    TRB_set_link(y , 1, p1);
-//                    TRB_set_link(p2, 1, y);
-//                    
-//                    if (TAG_is_thread(y, 1))
-//                    {
-//                        TAG_set_child(y, 1);
-//                        TAG_set_thread(p1, 0);
-//                        TRB_set_link(p1, 0, y);
-//                    }
-//                }
-//                /*
-//                 *        p3                                       p3
-//                 *        |                                        |
-//                 *        p2                                     _.y\._
-//                 *       /  \              ==>                  /      \
-//                 *      u    y\                                p2      p1
-//                 *          / \\                              /  \     / \
-//                 *         Y0  p1                            u   Y0   Y1  ?
-//                 *            /  \
-//                 *           Y1   ?
-//                 */
-//                TRB_set_red(p2);
-//                TRB_set_black(y);
-//                
-//                TRB_set_link(p2, 1, TRB_get_link(y, 0));
-//                TRB_set_link(y, 0, p2);
-//                TRB_set_link(p3, TPA_dir(k-3), y);
-//                
-//                if (TAG_is_thread(y, 0))
-//                {
-//                    TAG_set_child(y, 0);
-//                    TAG_set_thread(p2, 1);
-//                    TRB_set_link(p2, 1, y);
-//                }
-//                break;
-//            }
-//        }
-//    }
-//    TRB_set_black(tree->trb_root);
-//}
-//
 //static
 //void
 //trb_rotate_for_remove(const struct trb_vtab* vtab, volatile struct trb_tree* tree, struct trb_path_arg* arg)
@@ -560,46 +371,6 @@
 //    }
 //}
 //
-//struct trb_node*
-//trb_iter_next(ptrdiff_t node_offset, struct trb_node* iter)
-//{
-//    assert(iter != NULL);
-//    
-//    if (TAG_is_thread(iter, 1))
-//    {
-//        return TRB_get_link(iter, 1);
-//    }
-//    else
-//    {
-//        iter = TRB_get_link(iter, 1);
-//        while (TAG_is_child(iter, 0))
-//            iter = TRB_get_link(iter, 0);
-//        return iter;
-//    }
-//}
-//
-//struct trb_node*
-//trb_iter_prev(ptrdiff_t node_offset, struct trb_node* iter)
-//{
-//    assert(iter != NULL);
-//    
-//    if (TAG_is_thread(iter, 0))
-//    {
-//        return TRB_get_link(iter, 0);
-//    }
-//    else
-//    {
-//        iter = TRB_get_link(iter, 0);
-//        while (TAG_is_child(iter, 1))
-//            iter = TRB_get_link(iter, 1);
-//        return iter;
-//    }
-//}
-//
-//
-//
-//
-//
 
 
 template<class index_t>
@@ -621,24 +392,39 @@ struct threaded_rb_tree_node_t
     {
         return (children[1] & type_bit_mask) == 0;
     }
-    
-    void left_set_child(index_type const &link)
+    bool left_is_thread() const
     {
-        children[0] = (children[0] & flag_bit_mask) | link;
+        return (children[0] & type_bit_mask) != 0;
     }
-    void right_set_child(index_type const &link)
+    bool right_is_thread() const
     {
-        children[1] = (children[1] & flag_bit_mask) | link;
-    }
-    void left_set_thread(index_type const &link)
-    {
-        children[0] = (children[0] & flag_bit_mask) | type_bit_mask | link;
-    }
-    void right_set_thread(index_type const &link)
-    {
-        children[1] = (children[1] & flag_bit_mask) | type_bit_mask | link;
+        return (children[1] & type_bit_mask) != 0;
     }
     
+    void left_set_child()
+    {
+        children[0] &= ~type_bit_mask;
+    }
+    void right_set_child()
+    {
+        children[1] &= ~type_bit_mask;
+    }
+    void left_set_thread()
+    {
+        children[0] |= type_bit_mask;
+    }
+    void right_set_thread()
+    {
+        children[1] |= type_bit_mask;
+    }
+    void left_set_link(index_type const link)
+    {
+        children[0] = (children[0] & full_bit_mask) | link;
+    }
+    void right_set_link(index_type const link)
+    {
+        children[1] = (children[1] & full_bit_mask) | link;
+    }
     index_type left_get_link() const
     {
         return children[0] & ~full_bit_mask;
@@ -646,14 +432,6 @@ struct threaded_rb_tree_node_t
     index_type right_get_link() const
     {
         return children[1] & ~full_bit_mask;
-    }
-    void left_set_link(index_type const &link)
-    {
-        
-    }
-    void right_set_link(index_type const &link)
-    {
-        children[1] = (children[1] & full_bit_mask) | link;
     }
     
     bool is_nil() const
@@ -678,7 +456,7 @@ struct threaded_rb_tree_node_t
     }
     void set_black()
     {
-        children[0] |= flag_bit_mask;
+        children[0] &= ~flag_bit_mask;
     }
     
     bool is_red() const
@@ -687,7 +465,7 @@ struct threaded_rb_tree_node_t
     }
     void set_red()
     {
-        children[0] &= ~flag_bit_mask;
+        children[0] |= flag_bit_mask;
     }
 };
 
@@ -704,8 +482,10 @@ struct threaded_rb_tree_root_t
         node_type *nil_node = node_array + nil;
         nil_node->set_black();
         nil_node->set_nil(true);
-        nil_node->left_set_thread(nil);
-        nil_node->right_set_thread(nil);
+        nil_node->left_set_thread();
+        nil_node->right_set_thread();
+        nil_node->left_set_link(nil);
+        nil_node->right_set_link(nil);
     }
     
     index_type root;
@@ -725,13 +505,13 @@ struct threaded_rb_tree_stack_t
     threaded_rb_tree_stack_t(root_type &_root)
     {
         height = 1;
-//        hlow = 0;
+        hlow = 0;
         root = &_root;
         stack[0] = index_type(root->nil);
     }
     
     size_t height;
-//    size_t hlow;
+    size_t hlow;
     root_type *root;
     index_type stack[max_depth];
     
@@ -758,12 +538,11 @@ struct threaded_rb_tree_stack_t
 };
 
 template<class node_t, class comparator_t, size_t max_depth>
-void threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
+bool threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
     
-//    bool existed = false;
     if(stack.root->count != 0)
     {
         index_type p = stack.root->root;
@@ -775,27 +554,24 @@ void threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &sta
             {
                 if(!node_array[p].left_is_child())
                 {
-                    break;
+                    return false;
                 }
                 p = node_array[p].left_get_link();
             }
             else
             {
+                stack.hlow = stack.height;
                 if(!node_array[p].right_is_child())
                 {
-                    break;
+                    return !comparator(p, index);
                 }
                 p = node_array[p].right_get_link();
-//                stack.hlow = stack.height;
-//                if(!comparator(p, index))
-//                {
-//                    existed = true;
-//                }
             }
         }
     }
-//    return existed;
+    return false;
 }
+
 
 template<class node_t, size_t max_depth>
 void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, size_t length, typename node_t::index_type const &index)
@@ -807,14 +583,16 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
     node_type *node = node_array + index;
     ++stack.root->count;
     node->set_nil(false);
+    node->left_set_thread();
+    node->right_set_thread();
 
     if(stack.height == 1)
     {
-        node->left_set_thread(stack.root->nil);
-        node->right_set_thread(stack.root->nil);
+        node->left_set_link(stack.root->nil);
+        node->right_set_link(stack.root->nil);
         node->set_black();
-        nil_node->left_set_thread(index);
-        nil_node->right_set_thread(index);
+        nil_node->left_set_link(index);
+        nil_node->right_set_link(index);
         return;
     }
     node->set_red();
@@ -823,261 +601,151 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
     node_type *where_node = node_array + where;
     if(stack.is_left(k))
     {
-        node->left_set_thread(where_node->left_get_link());
-        node->right_set_thread(where);
-        where_node->left_set_child(index);
+        node->left_set_link(where_node->left_get_link());
+        node->right_set_link(where);
+        where_node->left_set_child();
+        where_node->left_set_link(index);
         if(where == nil_node->left_get_link())
         {
-            nil_node->left_set_thread(index);
+            nil_node->left_set_link(index);
         }
     }
     else
     {
-        node->right_set_thread(where_node->right_get_link());
-        node->left_set_thread(where);
-        where_node->right_set_child(index);
+        node->right_set_link(where_node->right_get_link());
+        node->left_set_link(where);
+        where_node->right_set_child();
+        where_node->right_set_link(index);
         if(where == nil_node->right_get_link())
         {
-            nil_node->right_set_thread(index);;
+            nil_node->right_set_link(index);;
         }
     }
-
-    //TODO fix
+    while(node_array[stack.get_index(k)].is_red())
+    {
+        index_type p3 = stack.get_index(k - 2);
+        index_type p2 = stack.get_index(k - 1);
+        index_type p1 = stack.get_index(k);
+        if(stack.is_left(k - 1))
+        {
+            index_type u = node_array[p2].right_get_link();
+            if(node_array[p2].right_is_child() && node_array[u].is_red())
+            {
+                node_array[p1].set_black();
+                node_array[u].set_black();
+                node_array[p2].set_red();
+                k -= 2;
+            }
+            else
+            {
+                index_type y;
+                if(stack.is_left(k))
+                {
+                    y = p1;
+                }
+                else
+                {
+                    y = node_array[p1].right_get_link();
+                    node_array[p1].right_set_link(node_array[y].left_get_link());
+                    node_array[y].left_set_link(p1);
+                    node_array[p2].left_set_link(y);
+                    if(node_array[y].left_is_thread())
+                    {
+                        node_array[y].left_set_child();
+                        node_array[p1].right_set_thread();
+                        node_array[p1].right_set_link(y);
+                    }
+                }
+                node_array[p2].set_red();
+                node_array[y].set_black();
+                node_array[p2].left_set_link(node_array[y].right_get_link());
+                node_array[y].right_set_link(p2);
+                if(p3 == stack.root->nil)
+                {
+                    stack.root->root = y;
+                }
+                else if(stack.is_left(k - 2))
+                {
+                    node_array[p3].left_set_link(y);
+                }
+                else
+                {
+                    node_array[p3].right_set_link(y);
+                }
+                if(node_array[y].right_is_thread())
+                {
+                    node_array[y].right_set_child();
+                    node_array[p2].left_set_thread();
+                    node_array[p2].left_set_link(y);
+                }
+                assert(node_array[p2].right_get_link() == u);
+                break;
+            }
+        }
+        else
+        {
+            index_type u = node_array[p2].left_get_link();
+            if(node_array[p2].left_is_child() && node_array[u].is_red())
+            {
+                node_array[p1].set_black();
+                node_array[u].set_black();
+                node_array[p2].set_red();
+                k -= 2;
+            }
+            else
+            {
+                index_type y;
+                if(stack.is_right(k))
+                {
+                    y = p1;
+                }
+                else
+                {
+                    y = node_array[p1].left_get_link();
+                    node_array[p1].left_set_link(node_array[y].right_get_link());
+                    node_array[y].right_set_link(p1);
+                    node_array[p2].right_set_link(y);
+                    if(node_array[y].right_is_thread())
+                    {
+                        node_array[y].right_set_child();
+                        node_array[p1].left_set_thread();
+                        node_array[p1].left_set_link(y);
+                    }
+                }
+                node_array[p2].set_red();
+                node_array[y].set_black();
+                node_array[p2].right_set_link(node_array[y].left_get_link());
+                node_array[y].left_set_link(p2);
+                if(p3 == stack.root->nil)
+                {
+                    stack.root->root = y;
+                }
+                else if(stack.is_right(k - 2))
+                {
+                    node_array[p3].right_set_link(y);
+                }
+                else
+                {
+                    node_array[p3].left_set_link(y);
+                }
+                if(node_array[y].left_is_thread())
+                {
+                    node_array[y].left_set_child();
+                    node_array[p2].right_set_thread();
+                    node_array[p2].right_set_link(y);
+                }
+                assert(node_array[p2].left_get_link() == u);
+                break;
+            }
+        }
+    }
     node_array[stack.root->root].set_black();
-//    while(!is_black_(base_t::get_parent_(node)))
-//    {
-//        if(base_t::get_parent_(node) == base_t::get_left_(base_t::get_parent_(base_t::get_parent_(node))))
-//        {
-//            where = base_t::get_right_(base_t::get_parent_(base_t::get_parent_(node)));
-//            if(!is_black_(where))
-//            {
-//                set_black_(base_t::get_parent_(node), true);
-//                set_black_(where, true);
-//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
-//                node = base_t::get_parent_(base_t::get_parent_(node));
-//            }
-//            else
-//            {
-//                if(node == base_t::get_right_(base_t::get_parent_(node)))
-//                {
-//                    node = base_t::get_parent_(node);
-//                    base_t::template bst_rotate_<true>(node);
-//                }
-//                set_black_(base_t::get_parent_(node), true);
-//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
-//                base_t::template bst_rotate_<false>(base_t::get_parent_(base_t::get_parent_(node)));
-//            }
-//        }
-//        else
-//        {
-//            where = base_t::get_left_(base_t::get_parent_(base_t::get_parent_(node)));
-//            if(!is_black_(where))
-//            {
-//                set_black_(base_t::get_parent_(node), true);
-//                set_black_(where, true);
-//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
-//                node = base_t::get_parent_(base_t::get_parent_(node));
-//            }
-//            else
-//            {
-//                if(node == base_t::get_left_(base_t::get_parent_(node)))
-//                {
-//                    node = base_t::get_parent_(node);
-//                    base_t::template bst_rotate_<false>(node);
-//                }
-//                set_black_(base_t::get_parent_(node), true);
-//                set_black_(base_t::get_parent_(base_t::get_parent_(node)), false);
-//                base_t::template bst_rotate_<true>(base_t::get_parent_(base_t::get_parent_(node)));
-//            }
-//        }
-//    }
-//    set_black_(base_t::get_root_(), true);
-    
-    //            size_t k = stack.height;
-    //            int dir = TPA_dir(k-1);
-    //            struct trb_node* p = TPA_ptr(k-1);
-    //            int doff = vtab->data_offset;
-    //
-    //            assert(arg->hlow <= k-1);
-    //            /*
-    //             *    p                    p
-    //             *            ==>          |
-    //             *                         n
-    //             */
-    //            TAG_set_thread(n, 0);
-    //            TAG_set_thread(n, 1);
-    //            TRB_set_link(n, dir, TRB_get_link(p, dir)); // thread
-    //
-    //            if (nark_likely(tree->trb_root != NULL)) {
-    //                TAG_set_child(p, dir);
-    //                TRB_set_link(n, !dir, p); // thread ptr
-    //            } else
-    //                TRB_set_link(n, 1, NULL); // thread ptr
-    //
-    //            assert(TAG_is_child(p, dir));
-    //            TRB_set_link(p, dir, n);
-    //            TRB_set_red(n);
-    //
-    //            while (k >= 3 && TRB_is_red(TPA_ptr(k-1)))
-    //            {
-    //                struct trb_node* p3 = TPA_ptr(k-3);
-    //                struct trb_node* p2 = TPA_ptr(k-2);
-    //                struct trb_node* p1 = TPA_ptr(k-1);
-    //
-    //                if (TPA_dir(k-2) == 0)
-    //                {
-    //                    /*
-    //                     *		p1 == p2->left
-    //                     *		u  == p2->right
-    //                     */
-    //                    struct trb_node* u = TRB_get_link(p2, 1);
-    //                    if (TAG_is_child(p2, 1) && TRB_is_red(u))
-    //                    { // p2->right != NULL && u->color == red, if ignore thread
-    //                        TRB_set_black(p1);
-    //                        TRB_set_black(u);
-    //                        TRB_set_red(p2);
-    //                        k -= 2;
-    //                    }
-    //                    else // p2->right == NULL || u->color == red, if ignore thread
-    //                    {
-    //                        struct trb_node *y;
-    //
-    //                        if (TPA_dir(k-1) == 0) // p == p1->left, if ignore thread
-    //                            y = p1;
-    //                        else
-    //                        {  //    p == p1->right
-    //                            /*
-    //                             *       p3                          p3
-    //                             *       |                           |
-    //                             *       p2                          p2
-    //                             *      /  \          ==>           /  \
-    //                             *     p1   u                      y    u
-    //                             *    /  \                        / \
-    //                             *   ?    y                      p1  Y1
-    //                             *       / \                    /  \
-    //                             *     Y0   Y1                 ?    Y0
-    //                             */
-    //                            y = TRB_get_link(p1, 1);
-    //                            TRB_set_link(p1, 1, TRB_get_link(y, 0));
-    //                            TRB_set_link(y , 0, p1);
-    //                            TRB_set_link(p2, 0, y);
-    //
-    //                            if (TAG_is_thread(y, 0))
-    //                            {
-    //                                TAG_set_child(y, 0);
-    //                                TAG_set_thread(p1, 1);
-    //                                TRB_set_link(p1, 1, y);
-    //                            }
-    //                        }
-    //                        /*
-    //                         *               p3                            p3
-    //                         *               |                             |
-    //                         *               p2                            y
-    //                         *              /  \              ==>       /     \
-    //                         *             y    u                      p1      p2
-    //                         *            / \                         /  \    /  \
-    //                         *           p1  Y1                      n?  Y0  Y1   u
-    //                         *          /  \
-    //                         *         n?  Y0
-    //                         */
-    //                        TRB_set_red(p2);
-    //                        TRB_set_black(y);
-    //
-    //                        TRB_set_link(p2, 0, TRB_get_link(y, 1));
-    //                        TRB_set_link(y, 1, p2);
-    //                        TRB_set_link(p3, TPA_dir(k-3), y);
-    //
-    //                        if (TAG_is_thread(y, 1))
-    //                        {
-    //                            TAG_set_child(y, 1);
-    //                            TAG_set_thread(p2, 0);
-    //                            TRB_set_link(p2, 0, y);
-    //                        }
-    //                        assert(TRB_get_link(p2, 1) == u);
-    //                        break;
-    //                    }
-    //                }
-    //                else
-    //                {
-    //                    /*
-    //                     *	p1 == p2->right
-    //                     *	u  == p2->left
-    //                     */
-    //                    struct trb_node* u = TRB_get_link(p2, 0);
-    //
-    //                    if (TAG_is_child(p2, 0) && TRB_is_red(u))
-    //                    {
-    //                        TRB_set_black(p1);
-    //                        TRB_set_black(u);
-    //                        TRB_set_red(p2);
-    //                        k -= 2;
-    //                    }
-    //                    else {
-    //                        struct trb_node *y;
-    //
-    //                        if (TPA_dir(k-1) == 1)
-    //                            y = p1;
-    //                        else
-    //                        {
-    //                            /*
-    //                             *       p3                                  p3
-    //                             *       |                                   |
-    //                             *       p2                                  p2
-    //                             *      /  \           ==>                  /  \
-    //                             *     u   p1                              u    y
-    //                             *        /  \                                 /  \
-    //                             *       y    ?                               Y0  p1
-    //                             *      / \                                      /  \
-    //                             *     Y0 Y1                                    Y1   ?
-    //                             */
-    //                            y = TRB_get_link(p1, 0);
-    //                            TRB_set_link(p1, 0, TRB_get_link(y, 1));
-    //                            TRB_set_link(y , 1, p1);
-    //                            TRB_set_link(p2, 1, y);
-    //
-    //                            if (TAG_is_thread(y, 1))
-    //                            {
-    //                                TAG_set_child(y, 1);
-    //                                TAG_set_thread(p1, 0);
-    //                                TRB_set_link(p1, 0, y);
-    //                            }
-    //                        }
-    //                        /*
-    //                         *        p3                                       p3
-    //                         *        |                                        |
-    //                         *        p2                                     _.y\._
-    //                         *       /  \              ==>                  /      \
-    //                         *      u    y\                                p2      p1
-    //                         *          / \\                              /  \     / \
-    //                         *         Y0  p1                            u   Y0   Y1  ?
-    //                         *            /  \
-    //                         *           Y1   ?
-    //                         */
-    //                        TRB_set_red(p2);
-    //                        TRB_set_black(y);
-    //
-    //                        TRB_set_link(p2, 1, TRB_get_link(y, 0));
-    //                        TRB_set_link(y, 0, p2);
-    //                        TRB_set_link(p3, TPA_dir(k-3), y);
-    //                        
-    //                        if (TAG_is_thread(y, 0))
-    //                        {
-    //                            TAG_set_child(y, 0);
-    //                            TAG_set_thread(p2, 1);
-    //                            TRB_set_link(p2, 1, y);
-    //                        }
-    //                        break;
-    //                    }
-    //                }
-    //            }
-    //            TRB_set_black(tree->trb_root);
-    
 }
 
 template<class node_t>
 node_t *threaded_rb_tree_move_next(node_t *node, node_t *node_array)
 {
-    if(!node->right_is_child())
+    if(node->right_is_thread())
     {
         return node_array + node->right_get_link();
     }
@@ -1094,7 +762,7 @@ node_t *threaded_rb_tree_move_next(node_t *node, node_t *node_array)
 template<class node_t>
 node_t *threaded_rb_tree_move_prev(node_t *node, node_t *node_array)
 {
-    if(!node->left_is_child())
+    if(node->left_is_thread())
     {
         return node_array + node->left_get_link();
     }
@@ -1221,184 +889,6 @@ public:
     
     void insert(index_type const &index)
     {
-//            size_t k = arg->height;
-//            int dir = TPA_dir(k-1);
-//            struct trb_node* p = TPA_ptr(k-1);
-//            int doff = vtab->data_offset;
-//        
-//            assert(arg->hlow <= k-1);
-//            /*
-//             *    p                    p
-//             *            ==>          |
-//             *                         n
-//             */
-//            TAG_set_thread(n, 0);
-//            TAG_set_thread(n, 1);
-//            TRB_set_link(n, dir, TRB_get_link(p, dir)); // thread
-//        
-//            if (nark_likely(tree->trb_root != NULL)) {
-//                TAG_set_child(p, dir);
-//                TRB_set_link(n, !dir, p); // thread ptr
-//            } else
-//                TRB_set_link(n, 1, NULL); // thread ptr
-//        
-//            assert(TAG_is_child(p, dir));
-//            TRB_set_link(p, dir, n);
-//            TRB_set_red(n);
-//        
-//            while (k >= 3 && TRB_is_red(TPA_ptr(k-1)))
-//            {
-//                struct trb_node* p3 = TPA_ptr(k-3);
-//                struct trb_node* p2 = TPA_ptr(k-2);
-//                struct trb_node* p1 = TPA_ptr(k-1);
-//        
-//                if (TPA_dir(k-2) == 0)
-//                {
-//                    /*
-//                     *		p1 == p2->left
-//                     *		u  == p2->right
-//                     */
-//                    struct trb_node* u = TRB_get_link(p2, 1);
-//                    if (TAG_is_child(p2, 1) && TRB_is_red(u))
-//                    { // p2->right != NULL && u->color == red, if ignore thread
-//                        TRB_set_black(p1);
-//                        TRB_set_black(u);
-//                        TRB_set_red(p2);
-//                        k -= 2;
-//                    }
-//                    else // p2->right == NULL || u->color == red, if ignore thread
-//                    {
-//                        struct trb_node *y;
-//        
-//                        if (TPA_dir(k-1) == 0) // p == p1->left, if ignore thread
-//                            y = p1;
-//                        else
-//                        {  //    p == p1->right
-//                            /*
-//                             *       p3                          p3
-//                             *       |                           |
-//                             *       p2                          p2
-//                             *      /  \          ==>           /  \
-//                             *     p1   u                      y    u
-//                             *    /  \                        / \
-//                             *   ?    y                      p1  Y1
-//                             *       / \                    /  \
-//                             *     Y0   Y1                 ?    Y0
-//                             */
-//                            y = TRB_get_link(p1, 1);
-//                            TRB_set_link(p1, 1, TRB_get_link(y, 0));
-//                            TRB_set_link(y , 0, p1);
-//                            TRB_set_link(p2, 0, y);
-//        
-//                            if (TAG_is_thread(y, 0))
-//                            {
-//                                TAG_set_child(y, 0);
-//                                TAG_set_thread(p1, 1);
-//                                TRB_set_link(p1, 1, y);
-//                            }
-//                        }
-//                        /*
-//                         *               p3                            p3
-//                         *               |                             |
-//                         *               p2                            y
-//                         *              /  \              ==>       /     \
-//                         *             y    u                      p1      p2
-//                         *            / \                         /  \    /  \
-//                         *           p1  Y1                      n?  Y0  Y1   u
-//                         *          /  \
-//                         *         n?  Y0
-//                         */
-//                        TRB_set_red(p2);
-//                        TRB_set_black(y);
-//        
-//                        TRB_set_link(p2, 0, TRB_get_link(y, 1));
-//                        TRB_set_link(y, 1, p2);
-//                        TRB_set_link(p3, TPA_dir(k-3), y);
-//        
-//                        if (TAG_is_thread(y, 1))
-//                        {
-//                            TAG_set_child(y, 1);
-//                            TAG_set_thread(p2, 0);
-//                            TRB_set_link(p2, 0, y);
-//                        }
-//                        assert(TRB_get_link(p2, 1) == u);
-//                        break;
-//                    }
-//                }
-//                else
-//                {
-//                    /*
-//                     *	p1 == p2->right
-//                     *	u  == p2->left
-//                     */
-//                    struct trb_node* u = TRB_get_link(p2, 0);
-//        
-//                    if (TAG_is_child(p2, 0) && TRB_is_red(u))
-//                    {
-//                        TRB_set_black(p1);
-//                        TRB_set_black(u);
-//                        TRB_set_red(p2);
-//                        k -= 2;
-//                    }
-//                    else {
-//                        struct trb_node *y;
-//        
-//                        if (TPA_dir(k-1) == 1)
-//                            y = p1;
-//                        else
-//                        {
-//                            /*
-//                             *       p3                                  p3
-//                             *       |                                   |
-//                             *       p2                                  p2
-//                             *      /  \           ==>                  /  \
-//                             *     u   p1                              u    y
-//                             *        /  \                                 /  \
-//                             *       y    ?                               Y0  p1
-//                             *      / \                                      /  \
-//                             *     Y0 Y1                                    Y1   ?
-//                             */
-//                            y = TRB_get_link(p1, 0);
-//                            TRB_set_link(p1, 0, TRB_get_link(y, 1));
-//                            TRB_set_link(y , 1, p1);
-//                            TRB_set_link(p2, 1, y);
-//        
-//                            if (TAG_is_thread(y, 1))
-//                            {
-//                                TAG_set_child(y, 1);
-//                                TAG_set_thread(p1, 0);
-//                                TRB_set_link(p1, 0, y);
-//                            }
-//                        }
-//                        /*
-//                         *        p3                                       p3
-//                         *        |                                        |
-//                         *        p2                                     _.y\._
-//                         *       /  \              ==>                  /      \
-//                         *      u    y\                                p2      p1
-//                         *          / \\                              /  \     / \
-//                         *         Y0  p1                            u   Y0   Y1  ?
-//                         *            /  \
-//                         *           Y1   ?
-//                         */
-//                        TRB_set_red(p2);
-//                        TRB_set_black(y);
-//                        
-//                        TRB_set_link(p2, 1, TRB_get_link(y, 0));
-//                        TRB_set_link(y, 0, p2);
-//                        TRB_set_link(p3, TPA_dir(k-3), y);
-//                        
-//                        if (TAG_is_thread(y, 0))
-//                        {
-//                            TAG_set_child(y, 0);
-//                            TAG_set_thread(p2, 1);
-//                            TRB_set_link(p2, 1, y);
-//                        }
-//                        break;
-//                    }
-//                }
-//            }
-//            TRB_set_black(tree->trb_root);
 
     }
     
