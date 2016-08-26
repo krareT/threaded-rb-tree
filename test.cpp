@@ -4,6 +4,7 @@
 #include <functional>
 #include <random>
 #include <iostream>
+#include <set>
 #include "threaded_rb_tree.h"
 
 
@@ -21,17 +22,21 @@ int main(int argc, const char * argv[])
     typedef threaded_rb_tree_node_t<uint32_t> node_t;
     typedef threaded_rb_tree_root_t<node_t> root_t;
     
-    size_t constexpr len = 100;
-    node_t arr[len];
-    size_t data[len];
+    size_t constexpr len = 10000;
+    node_t *arr = new node_t[len];
+    size_t *data = new size_t[len];
+    
+    std::memset(arr, 0, sizeof(node_t) * len);
+    std::memset(data, 0, sizeof(size_t) * len);
     
     std::mt19937 mt;
-    std::uniform_int_distribution<double> uni(0, 1000);
+    std::uniform_int_distribution<double> uni(0, 100000000);
     for(size_t i = 0; i < len; ++i)
     {
         data[i] = uni(mt);
     }
     
+    std::set<size_t> test;
     root_t root;
     
     for(size_t i = 0; i < len; ++i)
@@ -48,26 +53,23 @@ int main(int argc, const char * argv[])
             }
         });
         threaded_rb_tree_insert(stack, arr, uint32_t(i));
+        test.emplace(data[i]);
         
         uint32_t begin = root.left;
         uint32_t end = node_t::nil_sentinel;
-        
-        for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr))
+        auto it = test.begin();
+        for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr), ++it)
         {
-            std::cout << data[begin] << " ";
+            assert(data[begin] == *it);
         }
-        std::cout << std::endl;
-        
+
         uint32_t rbegin = root.right;
         uint32_t rend = node_t::nil_sentinel;
-        
-        
-        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr))
+        auto rit = test.rbegin();
+        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr), ++rit)
         {
-            std::cout << data[rbegin] << " ";
+            assert(data[rbegin] == *rit);
         }
-        
-        std::cout << std::endl;
     }
     
     for(size_t i = 0; i < len; ++i)
@@ -85,27 +87,26 @@ int main(int argc, const char * argv[])
         });
         assert(find);
         threaded_rb_tree_remove(stack, arr);
+        test.erase(test.find(data[i]));
         
         uint32_t begin = root.left;
         uint32_t end = node_t::nil_sentinel;
-        
-        for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr))
+        auto it = test.begin();
+        for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr), ++it)
         {
-            std::cout << data[begin] << " ";
+            assert(data[begin] == *it);
         }
-        std::cout << std::endl;
         
         uint32_t rbegin = root.right;
         uint32_t rend = node_t::nil_sentinel;
-        
-        
-        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr))
+        auto rit = test.rbegin();
+        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr), ++rit)
         {
-            std::cout << data[rbegin] << " ";
+            assert(data[rbegin] == *rit);
         }
-        
-        std::cout << std::endl;
     }
+    delete[] arr;
+    delete[] data;
     
     return 0;
 }

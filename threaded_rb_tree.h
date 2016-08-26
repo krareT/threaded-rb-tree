@@ -174,6 +174,7 @@ struct threaded_rb_tree_node_t
     {
         children[1] |= type_bit_mask;
     }
+    
     void left_set_link(index_type const link)
     {
         children[0] = (children[0] & full_bit_mask) | link;
@@ -199,7 +200,6 @@ struct threaded_rb_tree_node_t
     {
         children[0] &= ~flag_bit_mask;
     }
-    
     bool is_red() const
     {
         return (children[0] & flag_bit_mask) != 0;
