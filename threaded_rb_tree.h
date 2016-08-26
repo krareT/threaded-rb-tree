@@ -91,252 +91,6 @@
 //
 ///* Begin rotate */
 //
-//static
-//void
-//trb_rotate_for_remove(const struct trb_vtab* vtab, volatile struct trb_tree* tree, struct trb_path_arg* arg)
-//{
-//    TRB_define_node_offset
-//    int k = arg->hlow;
-//    int doff = vtab->data_offset;
-//    struct trb_node* p = TPA_ptr(k);
-//    assert(k >= 1);
-//    
-//    if (TAG_is_thread(p, 1))
-//    {
-//        if (TAG_is_child(p, 0))
-//        {
-//            struct trb_node* t = TRB_get_link(p, 0);
-//            
-//            while (TAG_is_child(t, 1))
-//                t = TRB_get_link(t, 1);
-//            TRB_set_link(t, 1, TRB_get_link(p, 1)); // t.next = p.next
-//            TRB_set_link(TPA_ptr(k-1), TPA_dir(k-1), TRB_get_link(p, 0));
-//            DBG_trb_check_all();
-//        }
-//        else // p.link[0,1] are all threads, p is a leaf
-//        {
-//            TRB_set_link(TPA_ptr(k-1), TPA_dir(k-1), TRB_get_link(p, TPA_dir(k-1)));
-//            if (TPA_ptr(k-1) != (struct trb_node *)TRB_root_as_node(tree))
-//                TAG_set_thread(TPA_ptr(k-1), TPA_dir(k-1));
-//            DBG_trb_check_all();
-//        }
-//    }
-//    else // p.link[1] is child
-//    {
-//        struct trb_node* r = TRB_get_link(p, 1);
-//        
-//        if (TAG_is_thread(r, 0))
-//        {
-//            TRB_set_link(r, 0, TRB_get_link(p, 0));
-//            TAG_copy(r, 0, p, 0);
-//            if (TAG_is_child(p, 0))
-//            {
-//                struct trb_node* t = TRB_get_link(p, 0);
-//                while (TAG_is_child(t, 1))
-//                    t = TRB_get_link(t, 1);
-//                TRB_set_link(t, 1, r); // thread t.next to r
-//            }
-//            TRB_set_link(TPA_ptr(k-1), TPA_dir(k-1), r);
-//            TRB_swap_color(r, p);
-//            TPA_set(k, r, 1);
-//            k++;
-//            DBG_trb_check_all();
-//        }
-//        else // is_child(r, 0)
-//        {
-//            struct trb_node* s;
-//            const int j = arg->hlow;
-//            
-//            for (++k;;)
-//            {
-//                TPA_set(k, r, 0);
-//                k++;
-//                s = TRB_get_link(r, 0);
-//                if (TAG_is_thread(s, 0))
-//                    break;
-//                
-//                r = s;
-//            }
-//            //	assert(TAG_is_thread(s, 0)); // always true
-//            //	assert(TAG_is_child (r, 0));
-//            //  assert(TRB_get_link (r, 0) == s);
-//            //  r is parent of left most of p.link[1]
-//            assert(TPA_ptr(j) == p);
-//            assert(j == arg->hlow);
-//            TPA_set(j, s, 1);
-//            if (TAG_is_child(s, 1)) {
-//                TRB_set_link(r, 0, TRB_get_link(s, 1));
-//            }
-//            else
-//            {
-//                assert(TRB_get_link(r, 0) == s);
-//                //	TRB_set_link(r, 0, s);
-//                TAG_set_thread(r, 0);
-//            }
-//            
-//            TRB_set_link(s, 0, TRB_get_link(p, 0));
-//            if (TAG_is_child(p, 0))
-//            {
-//                struct trb_node* t = TRB_get_link(p, 0);
-//                while (TAG_is_child(t, 1))
-//                    t = TRB_get_link(t, 1);
-//                TRB_set_link(t, 1, s); // thread t.next to s
-//                
-//                TAG_set_child(s, 0);
-//            }
-//            
-//            TRB_set_link(s, 1, TRB_get_link(p, 1));
-//            TAG_set_child(s, 1);
-//            
-//            TRB_swap_color(s, p);
-//            TRB_set_link(TPA_ptr(j-1), TPA_dir(j-1), s);
-//        }
-//    }
-//    
-//    if (TRB_is_black(p)) // 'p' will not be used in this block
-//    {
-//        for (; k > 1; k--)
-//        {
-//            if (TAG_is_child(TPA_ptr(k-1), TPA_dir(k-1)))
-//            {
-//                struct trb_node* x = TRB_get_link(TPA_ptr(k-1), TPA_dir(k-1));
-//                if (TRB_is_red(x))
-//                {
-//                    TRB_set_black(x);
-//                    break;
-//                }
-//            }
-//            
-//            if (TPA_dir(k-1) == 0)
-//            {
-//                struct trb_node* w = TRB_get_link(TPA_ptr(k-1), 1);
-//                
-//                if (TRB_is_red(w))
-//                {
-//                    TRB_set_black(w);
-//                    TRB_set_red(TPA_ptr(k-1));
-//                    
-//                    TRB_set_link(TPA_ptr(k-1), 1, TRB_get_link(w, 0));
-//                    TRB_set_link(w, 0, TPA_ptr(k-1));
-//                    TRB_set_link(TPA_ptr(k-2), TPA_dir(k-2), w);
-//                    TPA_set(k, TPA_ptr(k-1), 0);
-//                    TPA_setptr(k-1, w);
-//                    k++;
-//                    
-//                    w = TRB_get_link(TPA_ptr(k-1), 1);
-//                }
-//                if ( (TAG_is_thread(w, 0) || TRB_is_black(TRB_get_link(w, 0))) &&
-//                    (TAG_is_thread(w, 1) || TRB_is_black(TRB_get_link(w, 1))) )
-//                {
-//                    TRB_set_red(w);
-//                }
-//                else
-//                {
-//                    if (TAG_is_thread(w, 1) || TRB_is_black(TRB_get_link(w, 1)))
-//                    {
-//                        struct trb_node* y = TRB_get_link(w, 0);
-//                        TRB_set_black(y);
-//                        TRB_set_red(w);
-//                        TRB_set_link(w, 0, TRB_get_link(y, 1));
-//                        TRB_set_link(y, 1, w);
-//                        TRB_set_link(TPA_ptr(k-1), 1, y);
-//                        
-//                        if (TAG_is_thread(y, 1))
-//                        {
-//                            struct trb_node* z = TRB_get_link(y, 1);
-//                            TAG_set_child(y, 1);
-//                            TAG_set_thread(z, 0);
-//                            TRB_set_link(z, 0, y);
-//                        }
-//                        w = y;
-//                    }
-//                    
-//                    TRB_copy_color(w, TPA_ptr(k-1));
-//                    TRB_set_black(TPA_ptr(k-1));
-//                    TRB_set_black(TRB_get_link(w, 1));
-//                    
-//                    TRB_set_link(TPA_ptr(k-1), 1, TRB_get_link(w, 0));
-//                    TRB_set_link(w, 0, TPA_ptr(k-1));
-//                    TRB_set_link(TPA_ptr(k-2), TPA_dir(k-2), w);
-//                    
-//                    if (TAG_is_thread(w, 0))
-//                    {
-//                        TAG_set_child(w, 0);
-//                        TAG_set_thread(TPA_ptr(k-1), 1);
-//                        TRB_set_link(TPA_ptr(k-1), 1, w);
-//                    }
-//                    break;
-//                }
-//            }
-//            else
-//            {
-//                struct trb_node* w = TRB_get_link(TPA_ptr(k-1), 0);
-//                
-//                if (TRB_is_red(w))
-//                {
-//                    TRB_set_black(w);
-//                    TRB_set_red(TPA_ptr(k-1));
-//                    
-//                    TRB_set_link(TPA_ptr(k-1), 0, TRB_get_link(w, 1));
-//                    TRB_set_link(w, 1, TPA_ptr(k-1));
-//                    TRB_set_link(TPA_ptr(k-2), TPA_dir(k-2), w);
-//                    TPA_set(k, TPA_ptr(k-1), 1);
-//                    TPA_setptr(k-1, w);
-//                    k++;
-//                    
-//                    w = TRB_get_link(TPA_ptr(k-1), 0);
-//                }
-//                
-//                if ( (TAG_is_thread(w, 0) || TRB_is_black(TRB_get_link(w, 0))) &&
-//                    (TAG_is_thread(w, 1) || TRB_is_black(TRB_get_link(w, 1))) )
-//                {
-//                    TRB_set_red(w);
-//                }
-//                else
-//                {
-//                    if (TAG_is_thread(w, 0) || TRB_is_black(TRB_get_link(w, 0)))
-//                    {
-//                        struct trb_node* y = TRB_get_link(w, 1);
-//                        TRB_set_black(y);
-//                        TRB_set_red(w);
-//                        TRB_set_link(w, 1, TRB_get_link(y, 0));
-//                        TRB_set_link(y, 0, w);
-//                        TRB_set_link(TPA_ptr(k-1), 0, y);
-//                        
-//                        if (TAG_is_thread(y, 0))
-//                        {
-//                            struct trb_node* z = TRB_get_link(y, 0);
-//                            TAG_set_child(y, 0);
-//                            TAG_set_thread(z, 1);
-//                            TRB_set_link(z, 1, y);
-//                        }
-//                        w = y;
-//                    }
-//                    
-//                    TRB_copy_color(w, TPA_ptr(k-1));
-//                    TRB_set_black(TPA_ptr(k-1));
-//                    TRB_set_black(TRB_get_link(w, 0));
-//                    
-//                    TRB_set_link(TPA_ptr(k-1), 0, TRB_get_link(w, 1));
-//                    TRB_set_link(w, 1, TPA_ptr(k-1));
-//                    TRB_set_link(TPA_ptr(k-2), TPA_dir(k-2), w);
-//                    if (TAG_is_thread(w, 1))
-//                    {
-//                        TAG_set_child(w, 1);
-//                        TAG_set_thread(TPA_ptr(k-1), 0);
-//                        TRB_set_link(TPA_ptr(k-1), 0, w);
-//                    }
-//                    break;
-//                }
-//            }
-//        }//for
-//        
-//        if (tree->trb_root != NULL)
-//            TRB_set_black(tree->trb_root);
-//        
-//        DBG_trb_check_all();
-//    }
-//}
 //
 //
 //
@@ -488,13 +242,11 @@ struct threaded_rb_tree_stack_t
     threaded_rb_tree_stack_t(root_type &_root)
     {
         height = 1;
-        hlow = 0;
         root = &_root;
         stack[0] = node_type::nil_sentinel;
     }
     
     size_t height;
-    size_t hlow;
     root_type *root;
     index_type stack[max_depth];
     
@@ -518,10 +270,48 @@ struct threaded_rb_tree_stack_t
         }
         stack[height++] = index | (left ? 0 : dir_bit_mask);
     }
+    void update_index(size_t k, index_type const &index, bool left)
+    {
+        stack[k] = index | (left ? 0 : dir_bit_mask);
+    }
+    void update_index(size_t k, index_type const &index)
+    {
+        stack[k] = index | (stack[k] & dir_bit_mask);
+    }
 };
 
 template<class node_t, class comparator_t, size_t max_depth>
-bool threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
+void threaded_rb_tree_find_path_for_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
+{
+    typedef node_t node_type;
+    typedef typename node_type::index_type index_type;
+    
+    index_type p = stack.root->root;
+    while(p != node_type::nil_sentinel)
+    {
+        bool is_left = comparator(index, p);
+        stack.push_index(p, is_left);
+        if(is_left)
+        {
+            if(!node_array[p].left_is_child())
+            {
+                return;
+            }
+            p = node_array[p].left_get_link();
+        }
+        else
+        {
+            if(!node_array[p].right_is_child())
+            {
+                return;
+            }
+            p = node_array[p].right_get_link();
+        }
+    }
+}
+
+template<class node_t, class comparator_t, size_t max_depth>
+bool threaded_rb_tree_find_path_for_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
@@ -541,10 +331,13 @@ bool threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &sta
         }
         else
         {
-            stack.hlow = stack.height;
+            if(!comparator(p, index))
+            {
+                return true;
+            }
             if(!node_array[p].right_is_child())
             {
-                return !comparator(p, index);
+                return false;
             }
             p = node_array[p].right_get_link();
         }
@@ -554,7 +347,7 @@ bool threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &sta
 
 
 template<class node_t, size_t max_depth>
-void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, size_t length, typename node_t::index_type const &index)
+void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index)
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
@@ -722,9 +515,380 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
 }
 
 template<class node_t, size_t max_depth>
-void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, size_t length, typename node_t::index_type const &index)
+void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array)
 {
+    typedef node_t node_type;
+    typedef typename node_type::index_type index_type;
     
+    size_t k = stack.height - 1;
+    index_type p = stack.get_index(k);
+    if(p == stack.root->left)
+    {
+        stack.root->left = threaded_rb_tree_move_next(p, node_array);
+    }
+    if(p == stack.root->right)
+    {
+        stack.root->right = threaded_rb_tree_move_prev(p, node_array);
+    }
+    assert(k >= 1);
+    if(node_array[p].right_is_thread())
+    {
+        if(node_array[p].left_is_child())
+        {
+            index_type t = node_array[p].left_get_link();
+            while(node_array[t].right_is_child())
+            {
+                t = node_array[t].right_get_link();
+            }
+            node_array[t].right_set_link(node_array[p].right_get_link());
+            if(stack.get_index(k - 1) == node_type::nil_sentinel)
+            {
+                stack.root->root = node_array[p].left_get_link();
+            }
+            else if(stack.is_left(k - 1))
+            {
+                node_array[stack.get_index(k - 1)].left_set_link(node_array[p].left_get_link());
+            }
+            else
+            {
+                node_array[stack.get_index(k - 1)].right_set_link(node_array[p].left_get_link());
+            }
+        }
+        else
+        {
+            if(stack.get_index(k - 1) == node_type::nil_sentinel)
+            {
+                stack.root->root = node_array[p].left_get_link();
+            }
+            else if(stack.is_left(k - 1))
+            {
+                node_array[stack.get_index(k - 1)].left_set_link(node_array[p].left_get_link());
+                node_array[stack.get_index(k - 1)].left_set_thread();
+            }
+            else
+            {
+                node_array[stack.get_index(k - 1)].right_set_link(node_array[p].right_get_link());
+                node_array[stack.get_index(k - 1)].right_set_thread();
+            }
+        }
+    }
+    else
+    {
+        index_type r = node_array[p].right_get_link();
+        if(node_array[r].left_is_thread())
+        {
+            node_array[r].left_set_link(node_array[p].left_get_link());
+            if(node_array[p].left_is_child())
+            {
+                node_array[r].left_set_child();
+                index_type t = node_array[p].left_get_link();
+                while(node_array[t].right_is_child())
+                {
+                    t = node_array[t].right_get_link();
+                }
+                node_array[t].right_set_link(r);
+            }
+            else
+            {
+                node_array[r].left_set_thread();
+            }
+            if(stack.get_index(k - 1) == node_type::nil_sentinel)
+            {
+                stack.root->root = r;
+            }
+            else if(stack.is_left(k - 1))
+            {
+                node_array[stack.get_index(k - 1)].left_set_link(r);
+            }
+            else
+            {
+                node_array[stack.get_index(k - 1)].right_set_link(r);
+            }
+            bool p_is_red = node_array[p].is_red();
+            bool r_is_red = node_array[r].is_red();
+            if(p_is_red)
+            {
+                node_array[r].set_red();
+            }
+            else
+            {
+                node_array[r].set_black();
+            }
+            if(r_is_red)
+            {
+                node_array[p].set_red();
+            }
+            else
+            {
+                node_array[p].set_black();
+            }
+            stack.update_index(k, r, false);
+            ++k;
+        }
+        else
+        {
+            index_type s;
+            size_t const j = stack.height - 1;
+            for(++k; ; )
+            {
+                stack.update_index(k, r, true);
+                ++k;
+                s = node_array[r].left_get_link();
+                if(node_array[s].left_is_thread())
+                {
+                    break;
+                }
+                r = s;
+            }
+            assert(stack.get_index(j) == p);
+            assert(j == stack.height - 1);
+            stack.update_index(j, s, false);
+            if(node_array[s].right_is_child())
+            {
+                node_array[r].left_set_link(node_array[s].right_get_link());
+            }
+            else
+            {
+                assert(node_array[r].left_get_link() == s);
+                node_array[r].left_set_thread();
+            }
+            node_array[s].left_set_link(node_array[p].left_get_link());
+            if(node_array[p].left_is_child())
+            {
+                index_type t = node_array[p].left_get_link();
+                while(node_array[t].right_is_child())
+                {
+                    t = node_array[t].right_get_link();
+                }
+                node_array[t].right_set_link(s);
+                node_array[s].left_set_child();
+            }
+            node_array[s].right_set_link(node_array[p].right_get_link());
+            node_array[s].right_set_child();
+            bool s_is_red = node_array[s].is_red();
+            bool p_is_red = node_array[p].is_red();
+            if(s_is_red)
+            {
+                node_array[p].set_red();
+            }
+            else
+            {
+                node_array[p].set_black();
+            }
+            if(p_is_red)
+            {
+                node_array[s].set_red();
+            }
+            else
+            {
+                node_array[s].set_black();
+            }
+            if(stack.get_index(j - 1) == node_type::nil_sentinel)
+            {
+                stack.root->root = s;
+            }
+            else if(stack.is_left(j - 1))
+            {
+                node_array[stack.get_index(j - 1)].left_set_link(s);
+            }
+            else
+            {
+                node_array[stack.get_index(j - 1)].right_set_link(s);
+            }
+        }
+    }
+    if(node_array[p].is_black())
+    {
+        for(; k > 1; --k)
+        {
+            if(stack.is_left(k - 1))
+            {
+                if(node_array[stack.get_index(k - 1)].left_is_child())
+                {
+                    index_type x = node_array[stack.get_index(k - 1)].left_get_link();
+                    if(node_array[x].is_red())
+                    {
+                        node_array[x].set_black();
+                        break;
+                    }
+                }
+                index_type w = node_array[stack.get_index(k - 1)].right_get_link();
+                if(node_array[w].is_red())
+                {
+                    node_array[w].set_black();
+                    node_array[stack.get_index(k - 1)].set_red();
+                    node_array[stack.get_index(k - 1)].right_set_link(node_array[w].left_get_link());
+                    node_array[w].left_set_link(stack.get_index(k - 1));
+                    if(stack.get_index(k - 2) == node_type::nil_sentinel)
+                    {
+                        stack.root->root = w;
+                    }
+                    else if(stack.is_left(k - 2))
+                    {
+                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                    }
+                    else
+                    {
+                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                    }
+                    stack.update_index(k, stack.get_index(k - 1), true);
+                    stack.update_index(k - 1, w);
+                    w = node_array[stack.get_index(k)].right_get_link();
+                    ++k;
+                }
+                if((node_array[w].left_is_thread() || node_array[node_array[w].left_get_link()].is_black()) && (node_array[w].right_is_thread() || node_array[node_array[w].right_get_link()].is_black()))
+                {
+                    node_array[w].set_red();
+                }
+                else
+                {
+                    if(node_array[w].right_is_thread() || node_array[node_array[w].right_get_link()].is_black())
+                    {
+                        index_type y = node_array[w].left_get_link();
+                        node_array[y].set_black();
+                        node_array[w].set_red();
+                        node_array[w].left_set_link(node_array[y].right_get_link());
+                        node_array[y].right_set_link(w);
+                        node_array[stack.get_index(k - 1)].right_set_link(y);
+                        if(node_array[y].right_is_thread())
+                        {
+                            index_type z = node_array[y].right_get_link();
+                            node_array[y].right_set_child();
+                            node_array[z].left_set_thread();
+                            node_array[z].left_set_link(y);
+                        }
+                        w = y;
+                    }
+                    if(node_array[stack.get_index(k - 1)].is_red())
+                    {
+                        node_array[w].set_red();
+                    }
+                    else
+                    {
+                        node_array[w].set_black();
+                    }
+                    node_array[stack.get_index(k - 1)].set_black();
+                    node_array[node_array[w].right_get_link()].set_black();
+                    node_array[stack.get_index(k - 1)].right_set_link(node_array[w].left_get_link());
+                    node_array[w].left_set_link(stack.get_index(k - 1));
+                    if(stack.get_index(k - 2) == node_type::nil_sentinel)
+                    {
+                        stack.root->root = w;
+                    }
+                    else if(stack.is_left(k - 2))
+                    {
+                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                    }
+                    else
+                    {
+                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                    }
+                    if(node_array[w].left_is_thread())
+                    {
+                        node_array[w].left_set_child();
+                        node_array[stack.get_index(k - 1)].right_set_thread();
+                        node_array[stack.get_index(k - 1)].right_set_link(w);
+                    }
+                    break;
+                }
+            }
+            else
+            {
+                if(node_array[stack.get_index(k - 1)].right_is_child())
+                {
+                    index_type x = node_array[stack.get_index(k - 1)].right_get_link();
+                    if(node_array[x].is_red())
+                    {
+                        node_array[x].set_black();
+                        break;
+                    }
+                }
+                index_type w = node_array[stack.get_index(k - 1)].left_get_link();
+                if(node_array[w].is_red())
+                {
+                    node_array[w].set_black();
+                    node_array[stack.get_index(k - 1)].set_red();
+                    node_array[stack.get_index(k - 1)].left_set_link(node_array[w].right_get_link());
+                    node_array[w].right_set_link(stack.get_index(k - 1));
+                    if(stack.get_index(k - 2) == node_type::nil_sentinel)
+                    {
+                        stack.root->root = w;
+                    }
+                    else if(stack.is_right(k - 2))
+                    {
+                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                    }
+                    else
+                    {
+                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                    }
+                    stack.update_index(k, stack.get_index(k - 1), false);
+                    stack.update_index(k - 1, w);
+                    w = node_array[stack.get_index(k)].left_get_link();
+                    ++k;
+                }
+                if((node_array[w].right_is_thread() || node_array[node_array[w].right_get_link()].is_black()) && (node_array[w].left_is_thread() || node_array[node_array[w].left_get_link()].is_black()))
+                {
+                    node_array[w].set_red();
+                }
+                else
+                {
+                    if(node_array[w].left_is_thread() || node_array[node_array[w].left_get_link()].is_black())
+                    {
+                        index_type y = node_array[w].right_get_link();
+                        node_array[y].set_black();
+                        node_array[w].set_red();
+                        node_array[w].right_set_link(node_array[y].left_get_link());
+                        node_array[y].left_set_link(w);
+                        node_array[stack.get_index(k - 1)].left_set_link(y);
+                        if(node_array[y].left_is_thread())
+                        {
+                            index_type z = node_array[y].left_get_link();
+                            node_array[y].left_set_child();
+                            node_array[z].right_set_thread();
+                            node_array[z].right_set_link(y);
+                        }
+                        w = y;
+                    }
+                    if(node_array[stack.get_index(k - 1)].is_red())
+                    {
+                        node_array[w].set_red();
+                    }
+                    else
+                    {
+                        node_array[w].set_black();
+                    }
+                    node_array[stack.get_index(k - 1)].set_black();
+                    node_array[node_array[w].left_get_link()].set_black();
+                    node_array[stack.get_index(k - 1)].left_set_link(node_array[w].right_get_link());
+                    node_array[w].right_set_link(stack.get_index(k - 1));
+                    if(stack.get_index(k - 2) == node_type::nil_sentinel)
+                    {
+                        stack.root->root = w;
+                    }
+                    else if(stack.is_right(k - 2))
+                    {
+                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                    }
+                    else
+                    {
+                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                    }
+                    if(node_array[w].right_is_thread())
+                    {
+                        node_array[w].right_set_child();
+                        node_array[stack.get_index(k - 1)].left_set_thread();
+                        node_array[stack.get_index(k - 1)].left_set_link(w);
+                    }
+                    break;
+                }
+            }
+        }
+        if(stack.root->root != node_type::nil_sentinel)
+        {
+            node_array[stack.root->root].set_black();
+        }
+    }
 }
 
 template<class node_t>

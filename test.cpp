@@ -37,7 +37,7 @@ int main(int argc, const char * argv[])
     for(size_t i = 0; i < len; ++i)
     {
         threaded_rb_tree_stack_t<node_t, 40> stack(root);
-        threaded_rb_tree_find_path(stack, arr, uint32_t(i), [data](uint32_t l, uint32_t r){
+        threaded_rb_tree_find_path_for_insert(stack, arr, uint32_t(i), [data](uint32_t l, uint32_t r){
             if(data[l] != data[r])
             {
                 return data[l] < data[r];
@@ -47,7 +47,44 @@ int main(int argc, const char * argv[])
                 return l < r;
             }
         });
-        threaded_rb_tree_insert(stack, arr, len, uint32_t(i));
+        threaded_rb_tree_insert(stack, arr, uint32_t(i));
+        
+        uint32_t begin = root.left;
+        uint32_t end = node_t::nil_sentinel;
+        
+        for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr))
+        {
+            std::cout << data[begin] << " ";
+        }
+        std::cout << std::endl;
+        
+        uint32_t rbegin = root.right;
+        uint32_t rend = node_t::nil_sentinel;
+        
+        
+        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr))
+        {
+            std::cout << data[rbegin] << " ";
+        }
+        
+        std::cout << std::endl;
+    }
+    
+    for(size_t i = 0; i < len; ++i)
+    {
+        threaded_rb_tree_stack_t<node_t, 40> stack(root);
+        bool find = threaded_rb_tree_find_path_for_remove(stack, arr, uint32_t(i), [data](uint32_t l, uint32_t r){
+            if(data[l] != data[r])
+            {
+                return data[l] < data[r];
+            }
+            else
+            {
+                return l < r;
+            }
+        });
+        assert(find);
+        threaded_rb_tree_remove(stack, arr);
         
         uint32_t begin = root.left;
         uint32_t end = node_t::nil_sentinel;
