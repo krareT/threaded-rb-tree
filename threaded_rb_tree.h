@@ -384,6 +384,9 @@ struct threaded_rb_tree_node_t
     static index_type constexpr type_bit_mask = index_type(1) << (sizeof(index_type) * 8 - 2);
     static index_type constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
     
+    static index_type constexpr nil_sentinel = ~index_type(0) & ~full_bit_mask;
+    static index_type constexpr null_sentinel = nil_sentinel - 1;
+    
     bool left_is_child() const
     {
         return (children[0] & type_bit_mask) == 0;
@@ -434,22 +437,6 @@ struct threaded_rb_tree_node_t
         return children[1] & ~full_bit_mask;
     }
     
-    bool is_nil() const
-    {
-        return (children[1] & flag_bit_mask) != 0;
-    }
-    void set_nil(bool nil)
-    {
-        if(nil)
-        {
-            children[1] |= flag_bit_mask;
-        }
-        else
-        {
-            children[1] &= ~flag_bit_mask;
-        }
-    }
-    
     bool is_black() const
     {
         return (children[0] & flag_bit_mask) == 0;
@@ -475,21 +462,17 @@ struct threaded_rb_tree_root_t
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
     
-    threaded_rb_tree_root_t(node_type *node_array, size_t length)
+    threaded_rb_tree_root_t()
     {
-        assert(length > 0);
-        nil = index_type(length - 1);
-        node_type *nil_node = node_array + nil;
-        nil_node->set_black();
-        nil_node->set_nil(true);
-        nil_node->left_set_thread();
-        nil_node->right_set_thread();
-        nil_node->left_set_link(nil);
-        nil_node->right_set_link(nil);
+        root = node_type::nil_sentinel;
+        left = node_type::nil_sentinel;
+        right = node_type::nil_sentinel;
+        count = 0;
     }
     
     index_type root;
-    index_type nil;
+    index_type left;
+    index_type right;
     size_t count;
 };
 
@@ -507,7 +490,7 @@ struct threaded_rb_tree_stack_t
         height = 1;
         hlow = 0;
         root = &_root;
-        stack[0] = index_type(root->nil);
+        stack[0] = node_type::nil_sentinel;
     }
     
     size_t height;
@@ -543,30 +526,27 @@ bool threaded_rb_tree_find_path(threaded_rb_tree_stack_t<node_t, max_depth> &sta
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
     
-    if(stack.root->count != 0)
+    index_type p = stack.root->root;
+    while(p != node_type::nil_sentinel)
     {
-        index_type p = stack.root->root;
-        while(true)
+        bool is_left = comparator(index, p);
+        stack.push_index(p, is_left);
+        if(is_left)
         {
-            bool is_left = comparator(index, p);
-            stack.push_index(p, is_left);
-            if(is_left)
+            if(!node_array[p].left_is_child())
             {
-                if(!node_array[p].left_is_child())
-                {
-                    return false;
-                }
-                p = node_array[p].left_get_link();
+                return false;
             }
-            else
+            p = node_array[p].left_get_link();
+        }
+        else
+        {
+            stack.hlow = stack.height;
+            if(!node_array[p].right_is_child())
             {
-                stack.hlow = stack.height;
-                if(!node_array[p].right_is_child())
-                {
-                    return !comparator(p, index);
-                }
-                p = node_array[p].right_get_link();
+                return !comparator(p, index);
             }
+            p = node_array[p].right_get_link();
         }
     }
     return false;
@@ -579,20 +559,19 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
     
-    node_type *nil_node = node_array + stack.root->nil;
     node_type *node = node_array + index;
     ++stack.root->count;
-    node->set_nil(false);
     node->left_set_thread();
     node->right_set_thread();
 
     if(stack.height == 1)
     {
-        node->left_set_link(stack.root->nil);
-        node->right_set_link(stack.root->nil);
+        node->left_set_link(node_type::nil_sentinel);
+        node->right_set_link(node_type::nil_sentinel);
         node->set_black();
-        nil_node->left_set_link(index);
-        nil_node->right_set_link(index);
+        stack.root->root = index;
+        stack.root->left = index;
+        stack.root->right = index;
         return;
     }
     node->set_red();
@@ -605,9 +584,9 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
         node->right_set_link(where);
         where_node->left_set_child();
         where_node->left_set_link(index);
-        if(where == nil_node->left_get_link())
+        if(where == stack.root->left)
         {
-            nil_node->left_set_link(index);
+            stack.root->left = index;
         }
     }
     else
@@ -616,12 +595,12 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
         node->left_set_link(where);
         where_node->right_set_child();
         where_node->right_set_link(index);
-        if(where == nil_node->right_get_link())
+        if(where == stack.root->right)
         {
-            nil_node->right_set_link(index);;
+            stack.root->right = index;
         }
     }
-    while(node_array[stack.get_index(k)].is_red())
+    while(k >= 2 && node_array[stack.get_index(k)].is_red())
     {
         index_type p3 = stack.get_index(k - 2);
         index_type p2 = stack.get_index(k - 1);
@@ -660,7 +639,7 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
                 node_array[y].set_black();
                 node_array[p2].left_set_link(node_array[y].right_get_link());
                 node_array[y].right_set_link(p2);
-                if(p3 == stack.root->nil)
+                if(p3 == node_type::nil_sentinel)
                 {
                     stack.root->root = y;
                 }
@@ -716,7 +695,7 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
                 node_array[y].set_black();
                 node_array[p2].right_set_link(node_array[y].left_get_link());
                 node_array[y].left_set_link(p2);
-                if(p3 == stack.root->nil)
+                if(p3 == node_type::nil_sentinel)
                 {
                     stack.root->root = y;
                 }
@@ -742,36 +721,42 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
     node_array[stack.root->root].set_black();
 }
 
-template<class node_t>
-node_t *threaded_rb_tree_move_next(node_t *node, node_t *node_array)
+template<class node_t, size_t max_depth>
+void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, size_t length, typename node_t::index_type const &index)
 {
-    if(node->right_is_thread())
+    
+}
+
+template<class node_t>
+typename node_t::index_type threaded_rb_tree_move_next(typename node_t::index_type node, node_t *node_array)
+{
+    if(node_array[node].right_is_thread())
     {
-        return node_array + node->right_get_link();
+        return node_array[node].right_get_link();
     }
     else
     {
-        node = node_array + node->right_get_link();
-        while(node->left_is_child())
+        node = node_array[node].right_get_link();
+        while(node_array[node].left_is_child())
         {
-            node = node_array + node->left_get_link();
+            node = node_array[node].left_get_link();
         }
         return node;
     }
 }
 template<class node_t>
-node_t *threaded_rb_tree_move_prev(node_t *node, node_t *node_array)
+typename node_t::index_type threaded_rb_tree_move_prev(typename node_t::index_type node, node_t *node_array)
 {
-    if(node->left_is_thread())
+    if(node_array[node].left_is_thread())
     {
-        return node_array + node->left_get_link();
+        return node_array[node].left_get_link();
     }
     else
     {
-        node = node_array + node->left_get_link();
-        while(node->right_is_child())
+        node = node_array[node].left_get_link();
+        while(node_array[node].right_is_child())
         {
-            node = node_array + node->right_get_link();
+            node = node_array[node].right_get_link();
         }
         return node;
     }

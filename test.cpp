@@ -22,19 +22,17 @@ int main(int argc, const char * argv[])
     typedef threaded_rb_tree_root_t<node_t> root_t;
     
     size_t constexpr len = 100;
-    node_t arr[len + 1];
-    
-    root_t root(arr, len + 1);
-    
+    node_t arr[len];
     size_t data[len];
     
     std::mt19937 mt;
     std::uniform_int_distribution<double> uni(0, 1000);
     for(size_t i = 0; i < len; ++i)
     {
-        //data[i] = uni(mt);
-        data[i] = i;
+        data[i] = uni(mt);
     }
+    
+    root_t root;
     
     for(size_t i = 0; i < len; ++i)
     {
@@ -49,24 +47,24 @@ int main(int argc, const char * argv[])
                 return l < r;
             }
         });
-        threaded_rb_tree_insert(stack, arr, len + 1, uint32_t(i));
+        threaded_rb_tree_insert(stack, arr, len, uint32_t(i));
         
-        node_t *begin = arr + arr[root.nil].left_get_link();
-        node_t *end = arr + root.nil;
+        uint32_t begin = root.left;
+        uint32_t end = node_t::nil_sentinel;
         
         for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr))
         {
-            std::cout << data[begin - arr] << " ";
+            std::cout << data[begin] << " ";
         }
         std::cout << std::endl;
         
-        node_t *rbegin = arr + arr[root.nil].right_get_link();
-        node_t *rend = arr + root.nil;
+        uint32_t rbegin = root.right;
+        uint32_t rend = node_t::nil_sentinel;
         
         
         for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr))
         {
-            std::cout << data[rbegin - arr] << " ";
+            std::cout << data[rbegin] << " ";
         }
         
         std::cout << std::endl;
