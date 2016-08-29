@@ -38,27 +38,31 @@ int main(int argc, const char * argv[])
     
     std::set<size_t> test;
     root_t root;
+    auto comp = [data](uint32_t l, uint32_t r){
+        if(data[l] != data[r])
+        {
+            return data[l] < data[r];
+        }
+        else
+        {
+            return l < r;
+        }
+    };
+    auto deref = [arr](uint32_t i)->node_t &{
+        return arr[i];
+    };
     
     for(size_t i = 0; i < len; ++i)
     {
         threaded_rb_tree_stack_t<node_t, 40> stack(root);
-        threaded_rb_tree_find_path_for_insert(stack, arr, uint32_t(i), [data](uint32_t l, uint32_t r){
-            if(data[l] != data[r])
-            {
-                return data[l] < data[r];
-            }
-            else
-            {
-                return l < r;
-            }
-        });
-        threaded_rb_tree_insert(stack, arr, uint32_t(i));
+        threaded_rb_tree_find_path_for_insert(stack, deref, uint32_t(i), comp);
+        threaded_rb_tree_insert(stack, deref, uint32_t(i));
         test.emplace(data[i]);
         
         uint32_t begin = root.left;
         uint32_t end = node_t::nil_sentinel;
         auto it = test.begin();
-        for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr), ++it)
+        for(; begin != end; begin = threaded_rb_tree_move_next(begin, deref), ++it)
         {
             assert(data[begin] == *it);
         }
@@ -66,7 +70,7 @@ int main(int argc, const char * argv[])
         uint32_t rbegin = root.right;
         uint32_t rend = node_t::nil_sentinel;
         auto rit = test.rbegin();
-        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr), ++rit)
+        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, deref), ++rit)
         {
             assert(data[rbegin] == *rit);
         }
@@ -75,24 +79,15 @@ int main(int argc, const char * argv[])
     for(size_t i = 0; i < len; ++i)
     {
         threaded_rb_tree_stack_t<node_t, 40> stack(root);
-        bool find = threaded_rb_tree_find_path_for_remove(stack, arr, uint32_t(i), [data](uint32_t l, uint32_t r){
-            if(data[l] != data[r])
-            {
-                return data[l] < data[r];
-            }
-            else
-            {
-                return l < r;
-            }
-        });
+        bool find = threaded_rb_tree_find_path_for_remove(stack, deref, uint32_t(i), comp);
         assert(find);
-        threaded_rb_tree_remove(stack, arr);
+        threaded_rb_tree_remove(stack, deref);
         test.erase(test.find(data[i]));
         
         uint32_t begin = root.left;
         uint32_t end = node_t::nil_sentinel;
         auto it = test.begin();
-        for(; begin != end; begin = threaded_rb_tree_move_next(begin, arr), ++it)
+        for(; begin != end; begin = threaded_rb_tree_move_next(begin, deref), ++it)
         {
             assert(data[begin] == *it);
         }
@@ -100,7 +95,7 @@ int main(int argc, const char * argv[])
         uint32_t rbegin = root.right;
         uint32_t rend = node_t::nil_sentinel;
         auto rit = test.rbegin();
-        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, arr), ++rit)
+        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, deref), ++rit)
         {
             assert(data[rbegin] == *rit);
         }

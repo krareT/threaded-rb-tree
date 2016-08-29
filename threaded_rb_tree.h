@@ -157,8 +157,46 @@ struct threaded_rb_tree_stack_t
     }
 };
 
-template<class node_t, class comparator_t, size_t max_depth>
-void threaded_rb_tree_find_path_for_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
+
+template<class index_t, class dereference_t>
+index_t threaded_rb_tree_move_next(index_t node, dereference_t const &deref)
+{
+    if(deref(node).right_is_thread())
+    {
+        return deref(node).right_get_link();
+    }
+    else
+    {
+        node = deref(node).right_get_link();
+        while(deref(node).left_is_child())
+        {
+            node = deref(node).left_get_link();
+        }
+        return node;
+    }
+}
+
+template<class index_t, class dereference_t>
+index_t threaded_rb_tree_move_prev(index_t node, dereference_t const &deref)
+{
+    if(deref(node).left_is_thread())
+    {
+        return deref(node).left_get_link();
+    }
+    else
+    {
+        node = deref(node).left_get_link();
+        while(deref(node).right_is_child())
+        {
+            node = deref(node).right_get_link();
+        }
+        return node;
+    }
+}
+
+
+template<class node_t, class comparator_t, class dereference_t, size_t max_depth>
+void threaded_rb_tree_find_path_for_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, dereference_t const &deref, typename node_t::index_type const &index, comparator_t const &comparator)
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
@@ -170,25 +208,25 @@ void threaded_rb_tree_find_path_for_insert(threaded_rb_tree_stack_t<node_t, max_
         stack.push_index(p, is_left);
         if(is_left)
         {
-            if(!node_array[p].left_is_child())
+            if(deref(p).left_is_thread())
             {
                 return;
             }
-            p = node_array[p].left_get_link();
+            p = deref(p).left_get_link();
         }
         else
         {
-            if(!node_array[p].right_is_child())
+            if(deref(p).right_is_thread())
             {
                 return;
             }
-            p = node_array[p].right_get_link();
+            p = deref(p).right_get_link();
         }
     }
 }
 
-template<class node_t, class comparator_t, size_t max_depth>
-bool threaded_rb_tree_find_path_for_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index, comparator_t const &comparator)
+template<class node_t, class comparator_t, class dereference_t, size_t max_depth>
+bool threaded_rb_tree_find_path_for_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, dereference_t const &deref, typename node_t::index_type const &index, comparator_t const &comparator)
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
@@ -200,11 +238,11 @@ bool threaded_rb_tree_find_path_for_remove(threaded_rb_tree_stack_t<node_t, max_
         stack.push_index(p, is_left);
         if(is_left)
         {
-            if(!node_array[p].left_is_child())
+            if(deref(p).left_is_thread())
             {
                 return false;
             }
-            p = node_array[p].left_get_link();
+            p = deref(p).left_get_link();
         }
         else
         {
@@ -212,48 +250,46 @@ bool threaded_rb_tree_find_path_for_remove(threaded_rb_tree_stack_t<node_t, max_
             {
                 return true;
             }
-            if(!node_array[p].right_is_child())
+            if(deref(p).right_is_thread())
             {
                 return false;
             }
-            p = node_array[p].right_get_link();
+            p = deref(p).right_get_link();
         }
     }
     return false;
 }
 
 
-template<class node_t, size_t max_depth>
-void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array, typename node_t::index_type const &index)
+template<class node_t, class dereference_t, size_t max_depth>
+void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack, dereference_t const &deref, typename node_t::index_type const &index)
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
     
-    node_type *node = node_array + index;
     ++stack.root->count;
-    node->left_set_thread();
-    node->right_set_thread();
-
+    deref(index).left_set_thread();
+    deref(index).right_set_thread();
+    
     if(stack.height == 1)
     {
-        node->left_set_link(node_type::nil_sentinel);
-        node->right_set_link(node_type::nil_sentinel);
-        node->set_black();
+        deref(index).left_set_link(node_type::nil_sentinel);
+        deref(index).right_set_link(node_type::nil_sentinel);
+        deref(index).set_black();
         stack.root->root = index;
         stack.root->left = index;
         stack.root->right = index;
         return;
     }
-    node->set_red();
+    deref(index).set_red();
     size_t k = stack.height - 1;
     index_type where = stack.get_index(k);
-    node_type *where_node = node_array + where;
     if(stack.is_left(k))
     {
-        node->left_set_link(where_node->left_get_link());
-        node->right_set_link(where);
-        where_node->left_set_child();
-        where_node->left_set_link(index);
+        deref(index).left_set_link(deref(where).left_get_link());
+        deref(index).right_set_link(where);
+        deref(where).left_set_child();
+        deref(where).left_set_link(index);
         if(where == stack.root->left)
         {
             stack.root->left = index;
@@ -261,28 +297,28 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
     }
     else
     {
-        node->right_set_link(where_node->right_get_link());
-        node->left_set_link(where);
-        where_node->right_set_child();
-        where_node->right_set_link(index);
+        deref(index).right_set_link(deref(where).right_get_link());
+        deref(index).left_set_link(where);
+        deref(where).right_set_child();
+        deref(where).right_set_link(index);
         if(where == stack.root->right)
         {
             stack.root->right = index;
         }
     }
-    while(k >= 2 && node_array[stack.get_index(k)].is_red())
+    while(k >= 2 && deref(stack.get_index(k)).is_red())
     {
         index_type p3 = stack.get_index(k - 2);
         index_type p2 = stack.get_index(k - 1);
         index_type p1 = stack.get_index(k);
         if(stack.is_left(k - 1))
         {
-            index_type u = node_array[p2].right_get_link();
-            if(node_array[p2].right_is_child() && node_array[u].is_red())
+            index_type u = deref(p2).right_get_link();
+            if(deref(p2).right_is_child() && deref(u).is_red())
             {
-                node_array[p1].set_black();
-                node_array[u].set_black();
-                node_array[p2].set_red();
+                deref(p1).set_black();
+                deref(u).set_black();
+                deref(p2).set_red();
                 k -= 2;
             }
             else
@@ -294,51 +330,51 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
                 }
                 else
                 {
-                    y = node_array[p1].right_get_link();
-                    node_array[p1].right_set_link(node_array[y].left_get_link());
-                    node_array[y].left_set_link(p1);
-                    node_array[p2].left_set_link(y);
-                    if(node_array[y].left_is_thread())
+                    y = deref(p1).right_get_link();
+                    deref(p1).right_set_link(deref(y).left_get_link());
+                    deref(y).left_set_link(p1);
+                    deref(p2).left_set_link(y);
+                    if(deref(y).left_is_thread())
                     {
-                        node_array[y].left_set_child();
-                        node_array[p1].right_set_thread();
-                        node_array[p1].right_set_link(y);
+                        deref(y).left_set_child();
+                        deref(p1).right_set_thread();
+                        deref(p1).right_set_link(y);
                     }
                 }
-                node_array[p2].set_red();
-                node_array[y].set_black();
-                node_array[p2].left_set_link(node_array[y].right_get_link());
-                node_array[y].right_set_link(p2);
+                deref(p2).set_red();
+                deref(y).set_black();
+                deref(p2).left_set_link(deref(y).right_get_link());
+                deref(y).right_set_link(p2);
                 if(p3 == node_type::nil_sentinel)
                 {
                     stack.root->root = y;
                 }
                 else if(stack.is_left(k - 2))
                 {
-                    node_array[p3].left_set_link(y);
+                    deref(p3).left_set_link(y);
                 }
                 else
                 {
-                    node_array[p3].right_set_link(y);
+                    deref(p3).right_set_link(y);
                 }
-                if(node_array[y].right_is_thread())
+                if(deref(y).right_is_thread())
                 {
-                    node_array[y].right_set_child();
-                    node_array[p2].left_set_thread();
-                    node_array[p2].left_set_link(y);
+                    deref(y).right_set_child();
+                    deref(p2).left_set_thread();
+                    deref(p2).left_set_link(y);
                 }
-                assert(node_array[p2].right_get_link() == u);
+                assert(deref(p2).right_get_link() == u);
                 break;
             }
         }
         else
         {
-            index_type u = node_array[p2].left_get_link();
-            if(node_array[p2].left_is_child() && node_array[u].is_red())
+            index_type u = deref(p2).left_get_link();
+            if(deref(p2).left_is_child() && deref(u).is_red())
             {
-                node_array[p1].set_black();
-                node_array[u].set_black();
-                node_array[p2].set_red();
+                deref(p1).set_black();
+                deref(u).set_black();
+                deref(p2).set_red();
                 k -= 2;
             }
             else
@@ -350,49 +386,49 @@ void threaded_rb_tree_insert(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
                 }
                 else
                 {
-                    y = node_array[p1].left_get_link();
-                    node_array[p1].left_set_link(node_array[y].right_get_link());
-                    node_array[y].right_set_link(p1);
-                    node_array[p2].right_set_link(y);
-                    if(node_array[y].right_is_thread())
+                    y = deref(p1).left_get_link();
+                    deref(p1).left_set_link(deref(y).right_get_link());
+                    deref(y).right_set_link(p1);
+                    deref(p2).right_set_link(y);
+                    if(deref(y).right_is_thread())
                     {
-                        node_array[y].right_set_child();
-                        node_array[p1].left_set_thread();
-                        node_array[p1].left_set_link(y);
+                        deref(y).right_set_child();
+                        deref(p1).left_set_thread();
+                        deref(p1).left_set_link(y);
                     }
                 }
-                node_array[p2].set_red();
-                node_array[y].set_black();
-                node_array[p2].right_set_link(node_array[y].left_get_link());
-                node_array[y].left_set_link(p2);
+                deref(p2).set_red();
+                deref(y).set_black();
+                deref(p2).right_set_link(deref(y).left_get_link());
+                deref(y).left_set_link(p2);
                 if(p3 == node_type::nil_sentinel)
                 {
                     stack.root->root = y;
                 }
                 else if(stack.is_right(k - 2))
                 {
-                    node_array[p3].right_set_link(y);
+                    deref(p3).right_set_link(y);
                 }
                 else
                 {
-                    node_array[p3].left_set_link(y);
+                    deref(p3).left_set_link(y);
                 }
-                if(node_array[y].left_is_thread())
+                if(deref(y).left_is_thread())
                 {
-                    node_array[y].left_set_child();
-                    node_array[p2].right_set_thread();
-                    node_array[p2].right_set_link(y);
+                    deref(y).left_set_child();
+                    deref(p2).right_set_thread();
+                    deref(p2).right_set_link(y);
                 }
-                assert(node_array[p2].left_get_link() == u);
+                assert(deref(p2).left_get_link() == u);
                 break;
             }
         }
     }
-    node_array[stack.root->root].set_black();
+    deref(stack.root->root).set_black();
 }
 
-template<class node_t, size_t max_depth>
-void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, node_t *node_array)
+template<class node_t, class dereference_t, size_t max_depth>
+void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack, dereference_t const &deref)
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
@@ -401,73 +437,73 @@ void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
     index_type p = stack.get_index(k);
     if(p == stack.root->left)
     {
-        stack.root->left = threaded_rb_tree_move_next(p, node_array);
+        stack.root->left = threaded_rb_tree_move_next(p, deref);
     }
     if(p == stack.root->right)
     {
-        stack.root->right = threaded_rb_tree_move_prev(p, node_array);
+        stack.root->right = threaded_rb_tree_move_prev(p, deref);
     }
     assert(k >= 1);
-    if(node_array[p].right_is_thread())
+    if(deref(p).right_is_thread())
     {
-        if(node_array[p].left_is_child())
+        if(deref(p).left_is_child())
         {
-            index_type t = node_array[p].left_get_link();
-            while(node_array[t].right_is_child())
+            index_type t = deref(p).left_get_link();
+            while(deref(t).right_is_child())
             {
-                t = node_array[t].right_get_link();
+                t = deref(t).right_get_link();
             }
-            node_array[t].right_set_link(node_array[p].right_get_link());
+            deref(t).right_set_link(deref(p).right_get_link());
             if(stack.get_index(k - 1) == node_type::nil_sentinel)
             {
-                stack.root->root = node_array[p].left_get_link();
+                stack.root->root = deref(p).left_get_link();
             }
             else if(stack.is_left(k - 1))
             {
-                node_array[stack.get_index(k - 1)].left_set_link(node_array[p].left_get_link());
+                deref(stack.get_index(k - 1)).left_set_link(deref(p).left_get_link());
             }
             else
             {
-                node_array[stack.get_index(k - 1)].right_set_link(node_array[p].left_get_link());
+                deref(stack.get_index(k - 1)).right_set_link(deref(p).left_get_link());
             }
         }
         else
         {
             if(stack.get_index(k - 1) == node_type::nil_sentinel)
             {
-                stack.root->root = node_array[p].left_get_link();
+                stack.root->root = deref(p).left_get_link();
             }
             else if(stack.is_left(k - 1))
             {
-                node_array[stack.get_index(k - 1)].left_set_link(node_array[p].left_get_link());
-                node_array[stack.get_index(k - 1)].left_set_thread();
+                deref(stack.get_index(k - 1)).left_set_link(deref(p).left_get_link());
+                deref(stack.get_index(k - 1)).left_set_thread();
             }
             else
             {
-                node_array[stack.get_index(k - 1)].right_set_link(node_array[p].right_get_link());
-                node_array[stack.get_index(k - 1)].right_set_thread();
+                deref(stack.get_index(k - 1)).right_set_link(deref(p).right_get_link());
+                deref(stack.get_index(k - 1)).right_set_thread();
             }
         }
     }
     else
     {
-        index_type r = node_array[p].right_get_link();
-        if(node_array[r].left_is_thread())
+        index_type r = deref(p).right_get_link();
+        if(deref(r).left_is_thread())
         {
-            node_array[r].left_set_link(node_array[p].left_get_link());
-            if(node_array[p].left_is_child())
+            deref(r).left_set_link(deref(p).left_get_link());
+            if(deref(p).left_is_child())
             {
-                node_array[r].left_set_child();
-                index_type t = node_array[p].left_get_link();
-                while(node_array[t].right_is_child())
+                deref(r).left_set_child();
+                index_type t = deref(p).left_get_link();
+                while(deref(t).right_is_child())
                 {
-                    t = node_array[t].right_get_link();
+                    t = deref(t).right_get_link();
                 }
-                node_array[t].right_set_link(r);
+                deref(t).right_set_link(r);
             }
             else
             {
-                node_array[r].left_set_thread();
+                deref(r).left_set_thread();
             }
             if(stack.get_index(k - 1) == node_type::nil_sentinel)
             {
@@ -475,29 +511,29 @@ void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
             }
             else if(stack.is_left(k - 1))
             {
-                node_array[stack.get_index(k - 1)].left_set_link(r);
+                deref(stack.get_index(k - 1)).left_set_link(r);
             }
             else
             {
-                node_array[stack.get_index(k - 1)].right_set_link(r);
+                deref(stack.get_index(k - 1)).right_set_link(r);
             }
-            bool p_is_red = node_array[p].is_red();
-            bool r_is_red = node_array[r].is_red();
+            bool p_is_red = deref(p).is_red();
+            bool r_is_red = deref(r).is_red();
             if(p_is_red)
             {
-                node_array[r].set_red();
+                deref(r).set_red();
             }
             else
             {
-                node_array[r].set_black();
+                deref(r).set_black();
             }
             if(r_is_red)
             {
-                node_array[p].set_red();
+                deref(p).set_red();
             }
             else
             {
-                node_array[p].set_black();
+                deref(p).set_black();
             }
             stack.update_index(k, r, false);
             ++k;
@@ -510,8 +546,8 @@ void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
             {
                 stack.update_index(k, r, true);
                 ++k;
-                s = node_array[r].left_get_link();
-                if(node_array[s].left_is_thread())
+                s = deref(r).left_get_link();
+                if(deref(s).left_is_thread())
                 {
                     break;
                 }
@@ -520,45 +556,45 @@ void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
             assert(stack.get_index(j) == p);
             assert(j == stack.height - 1);
             stack.update_index(j, s, false);
-            if(node_array[s].right_is_child())
+            if(deref(s).right_is_child())
             {
-                node_array[r].left_set_link(node_array[s].right_get_link());
+                deref(r).left_set_link(deref(s).right_get_link());
             }
             else
             {
-                assert(node_array[r].left_get_link() == s);
-                node_array[r].left_set_thread();
+                assert(deref(r).left_get_link() == s);
+                deref(r).left_set_thread();
             }
-            node_array[s].left_set_link(node_array[p].left_get_link());
-            if(node_array[p].left_is_child())
+            deref(s).left_set_link(deref(p).left_get_link());
+            if(deref(p).left_is_child())
             {
-                index_type t = node_array[p].left_get_link();
-                while(node_array[t].right_is_child())
+                index_type t = deref(p).left_get_link();
+                while(deref(t).right_is_child())
                 {
-                    t = node_array[t].right_get_link();
+                    t = deref(t).right_get_link();
                 }
-                node_array[t].right_set_link(s);
-                node_array[s].left_set_child();
+                deref(t).right_set_link(s);
+                deref(s).left_set_child();
             }
-            node_array[s].right_set_link(node_array[p].right_get_link());
-            node_array[s].right_set_child();
-            bool s_is_red = node_array[s].is_red();
-            bool p_is_red = node_array[p].is_red();
+            deref(s).right_set_link(deref(p).right_get_link());
+            deref(s).right_set_child();
+            bool s_is_red = deref(s).is_red();
+            bool p_is_red = deref(p).is_red();
             if(s_is_red)
             {
-                node_array[p].set_red();
+                deref(p).set_red();
             }
             else
             {
-                node_array[p].set_black();
+                deref(p).set_black();
             }
             if(p_is_red)
             {
-                node_array[s].set_red();
+                deref(s).set_red();
             }
             else
             {
-                node_array[s].set_black();
+                deref(s).set_black();
             }
             if(stack.get_index(j - 1) == node_type::nil_sentinel)
             {
@@ -566,196 +602,196 @@ void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
             }
             else if(stack.is_left(j - 1))
             {
-                node_array[stack.get_index(j - 1)].left_set_link(s);
+                deref(stack.get_index(j - 1)).left_set_link(s);
             }
             else
             {
-                node_array[stack.get_index(j - 1)].right_set_link(s);
+                deref(stack.get_index(j - 1)).right_set_link(s);
             }
         }
     }
-    if(node_array[p].is_black())
+    if(deref(p).is_black())
     {
         for(; k > 1; --k)
         {
             if(stack.is_left(k - 1))
             {
-                if(node_array[stack.get_index(k - 1)].left_is_child())
+                if(deref(stack.get_index(k - 1)).left_is_child())
                 {
-                    index_type x = node_array[stack.get_index(k - 1)].left_get_link();
-                    if(node_array[x].is_red())
+                    index_type x = deref(stack.get_index(k - 1)).left_get_link();
+                    if(deref(x).is_red())
                     {
-                        node_array[x].set_black();
+                        deref(x).set_black();
                         break;
                     }
                 }
-                index_type w = node_array[stack.get_index(k - 1)].right_get_link();
-                if(node_array[w].is_red())
+                index_type w = deref(stack.get_index(k - 1)).right_get_link();
+                if(deref(w).is_red())
                 {
-                    node_array[w].set_black();
-                    node_array[stack.get_index(k - 1)].set_red();
-                    node_array[stack.get_index(k - 1)].right_set_link(node_array[w].left_get_link());
-                    node_array[w].left_set_link(stack.get_index(k - 1));
+                    deref(w).set_black();
+                    deref(stack.get_index(k - 1)).set_red();
+                    deref(stack.get_index(k - 1)).right_set_link(deref(w).left_get_link());
+                    deref(w).left_set_link(stack.get_index(k - 1));
                     if(stack.get_index(k - 2) == node_type::nil_sentinel)
                     {
                         stack.root->root = w;
                     }
                     else if(stack.is_left(k - 2))
                     {
-                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                        deref(stack.get_index(k - 2)).left_set_link(w);
                     }
                     else
                     {
-                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                        deref(stack.get_index(k - 2)).right_set_link(w);
                     }
                     stack.update_index(k, stack.get_index(k - 1), true);
                     stack.update_index(k - 1, w);
-                    w = node_array[stack.get_index(k)].right_get_link();
+                    w = deref(stack.get_index(k)).right_get_link();
                     ++k;
                 }
-                if((node_array[w].left_is_thread() || node_array[node_array[w].left_get_link()].is_black()) && (node_array[w].right_is_thread() || node_array[node_array[w].right_get_link()].is_black()))
+                if((deref(w).left_is_thread() || deref(deref(w).left_get_link()).is_black()) && (deref(w).right_is_thread() || deref(deref(w).right_get_link()).is_black()))
                 {
-                    node_array[w].set_red();
+                    deref(w).set_red();
                 }
                 else
                 {
-                    if(node_array[w].right_is_thread() || node_array[node_array[w].right_get_link()].is_black())
+                    if(deref(w).right_is_thread() || deref(deref(w).right_get_link()).is_black())
                     {
-                        index_type y = node_array[w].left_get_link();
-                        node_array[y].set_black();
-                        node_array[w].set_red();
-                        node_array[w].left_set_link(node_array[y].right_get_link());
-                        node_array[y].right_set_link(w);
-                        node_array[stack.get_index(k - 1)].right_set_link(y);
-                        if(node_array[y].right_is_thread())
+                        index_type y = deref(w).left_get_link();
+                        deref(y).set_black();
+                        deref(w).set_red();
+                        deref(w).left_set_link(deref(y).right_get_link());
+                        deref(y).right_set_link(w);
+                        deref(stack.get_index(k - 1)).right_set_link(y);
+                        if(deref(y).right_is_thread())
                         {
-                            index_type z = node_array[y].right_get_link();
-                            node_array[y].right_set_child();
-                            node_array[z].left_set_thread();
-                            node_array[z].left_set_link(y);
+                            index_type z = deref(y).right_get_link();
+                            deref(y).right_set_child();
+                            deref(z).left_set_thread();
+                            deref(z).left_set_link(y);
                         }
                         w = y;
                     }
-                    if(node_array[stack.get_index(k - 1)].is_red())
+                    if(deref(stack.get_index(k - 1)).is_red())
                     {
-                        node_array[w].set_red();
+                        deref(w).set_red();
                     }
                     else
                     {
-                        node_array[w].set_black();
+                        deref(w).set_black();
                     }
-                    node_array[stack.get_index(k - 1)].set_black();
-                    node_array[node_array[w].right_get_link()].set_black();
-                    node_array[stack.get_index(k - 1)].right_set_link(node_array[w].left_get_link());
-                    node_array[w].left_set_link(stack.get_index(k - 1));
+                    deref(stack.get_index(k - 1)).set_black();
+                    deref(deref(w).right_get_link()).set_black();
+                    deref(stack.get_index(k - 1)).right_set_link(deref(w).left_get_link());
+                    deref(w).left_set_link(stack.get_index(k - 1));
                     if(stack.get_index(k - 2) == node_type::nil_sentinel)
                     {
                         stack.root->root = w;
                     }
                     else if(stack.is_left(k - 2))
                     {
-                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                        deref(stack.get_index(k - 2)).left_set_link(w);
                     }
                     else
                     {
-                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                        deref(stack.get_index(k - 2)).right_set_link(w);
                     }
-                    if(node_array[w].left_is_thread())
+                    if(deref(w).left_is_thread())
                     {
-                        node_array[w].left_set_child();
-                        node_array[stack.get_index(k - 1)].right_set_thread();
-                        node_array[stack.get_index(k - 1)].right_set_link(w);
+                        deref(w).left_set_child();
+                        deref(stack.get_index(k - 1)).right_set_thread();
+                        deref(stack.get_index(k - 1)).right_set_link(w);
                     }
                     break;
                 }
             }
             else
             {
-                if(node_array[stack.get_index(k - 1)].right_is_child())
+                if(deref(stack.get_index(k - 1)).right_is_child())
                 {
-                    index_type x = node_array[stack.get_index(k - 1)].right_get_link();
-                    if(node_array[x].is_red())
+                    index_type x = deref(stack.get_index(k - 1)).right_get_link();
+                    if(deref(x).is_red())
                     {
-                        node_array[x].set_black();
+                        deref(x).set_black();
                         break;
                     }
                 }
-                index_type w = node_array[stack.get_index(k - 1)].left_get_link();
-                if(node_array[w].is_red())
+                index_type w = deref(stack.get_index(k - 1)).left_get_link();
+                if(deref(w).is_red())
                 {
-                    node_array[w].set_black();
-                    node_array[stack.get_index(k - 1)].set_red();
-                    node_array[stack.get_index(k - 1)].left_set_link(node_array[w].right_get_link());
-                    node_array[w].right_set_link(stack.get_index(k - 1));
+                    deref(w).set_black();
+                    deref(stack.get_index(k - 1)).set_red();
+                    deref(stack.get_index(k - 1)).left_set_link(deref(w).right_get_link());
+                    deref(w).right_set_link(stack.get_index(k - 1));
                     if(stack.get_index(k - 2) == node_type::nil_sentinel)
                     {
                         stack.root->root = w;
                     }
                     else if(stack.is_right(k - 2))
                     {
-                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                        deref(stack.get_index(k - 2)).right_set_link(w);
                     }
                     else
                     {
-                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                        deref(stack.get_index(k - 2)).left_set_link(w);
                     }
                     stack.update_index(k, stack.get_index(k - 1), false);
                     stack.update_index(k - 1, w);
-                    w = node_array[stack.get_index(k)].left_get_link();
+                    w = deref(stack.get_index(k)).left_get_link();
                     ++k;
                 }
-                if((node_array[w].right_is_thread() || node_array[node_array[w].right_get_link()].is_black()) && (node_array[w].left_is_thread() || node_array[node_array[w].left_get_link()].is_black()))
+                if((deref(w).right_is_thread() || deref(deref(w).right_get_link()).is_black()) && (deref(w).left_is_thread() || deref(deref(w).left_get_link()).is_black()))
                 {
-                    node_array[w].set_red();
+                    deref(w).set_red();
                 }
                 else
                 {
-                    if(node_array[w].left_is_thread() || node_array[node_array[w].left_get_link()].is_black())
+                    if(deref(w).left_is_thread() || deref(deref(w).left_get_link()).is_black())
                     {
-                        index_type y = node_array[w].right_get_link();
-                        node_array[y].set_black();
-                        node_array[w].set_red();
-                        node_array[w].right_set_link(node_array[y].left_get_link());
-                        node_array[y].left_set_link(w);
-                        node_array[stack.get_index(k - 1)].left_set_link(y);
-                        if(node_array[y].left_is_thread())
+                        index_type y = deref(w).right_get_link();
+                        deref(y).set_black();
+                        deref(w).set_red();
+                        deref(w).right_set_link(deref(y).left_get_link());
+                        deref(y).left_set_link(w);
+                        deref(stack.get_index(k - 1)).left_set_link(y);
+                        if(deref(y).left_is_thread())
                         {
-                            index_type z = node_array[y].left_get_link();
-                            node_array[y].left_set_child();
-                            node_array[z].right_set_thread();
-                            node_array[z].right_set_link(y);
+                            index_type z = deref(y).left_get_link();
+                            deref(y).left_set_child();
+                            deref(z).right_set_thread();
+                            deref(z).right_set_link(y);
                         }
                         w = y;
                     }
-                    if(node_array[stack.get_index(k - 1)].is_red())
+                    if(deref(stack.get_index(k - 1)).is_red())
                     {
-                        node_array[w].set_red();
+                        deref(w).set_red();
                     }
                     else
                     {
-                        node_array[w].set_black();
+                        deref(w).set_black();
                     }
-                    node_array[stack.get_index(k - 1)].set_black();
-                    node_array[node_array[w].left_get_link()].set_black();
-                    node_array[stack.get_index(k - 1)].left_set_link(node_array[w].right_get_link());
-                    node_array[w].right_set_link(stack.get_index(k - 1));
+                    deref(stack.get_index(k - 1)).set_black();
+                    deref(deref(w).left_get_link()).set_black();
+                    deref(stack.get_index(k - 1)).left_set_link(deref(w).right_get_link());
+                    deref(w).right_set_link(stack.get_index(k - 1));
                     if(stack.get_index(k - 2) == node_type::nil_sentinel)
                     {
                         stack.root->root = w;
                     }
                     else if(stack.is_right(k - 2))
                     {
-                        node_array[stack.get_index(k - 2)].right_set_link(w);
+                        deref(stack.get_index(k - 2)).right_set_link(w);
                     }
                     else
                     {
-                        node_array[stack.get_index(k - 2)].left_set_link(w);
+                        deref(stack.get_index(k - 2)).left_set_link(w);
                     }
-                    if(node_array[w].right_is_thread())
+                    if(deref(w).right_is_thread())
                     {
-                        node_array[w].right_set_child();
-                        node_array[stack.get_index(k - 1)].left_set_thread();
-                        node_array[stack.get_index(k - 1)].left_set_link(w);
+                        deref(w).right_set_child();
+                        deref(stack.get_index(k - 1)).left_set_thread();
+                        deref(stack.get_index(k - 1)).left_set_link(w);
                     }
                     break;
                 }
@@ -763,46 +799,10 @@ void threaded_rb_tree_remove(threaded_rb_tree_stack_t<node_t, max_depth> &stack,
         }
         if(stack.root->root != node_type::nil_sentinel)
         {
-            node_array[stack.root->root].set_black();
+            deref(stack.root->root).set_black();
         }
     }
 }
-
-template<class node_t>
-typename node_t::index_type threaded_rb_tree_move_next(typename node_t::index_type node, node_t *node_array)
-{
-    if(node_array[node].right_is_thread())
-    {
-        return node_array[node].right_get_link();
-    }
-    else
-    {
-        node = node_array[node].right_get_link();
-        while(node_array[node].left_is_child())
-        {
-            node = node_array[node].left_get_link();
-        }
-        return node;
-    }
-}
-template<class node_t>
-typename node_t::index_type threaded_rb_tree_move_prev(typename node_t::index_type node, node_t *node_array)
-{
-    if(node_array[node].left_is_thread())
-    {
-        return node_array[node].left_get_link();
-    }
-    else
-    {
-        node = node_array[node].left_get_link();
-        while(node_array[node].right_is_child())
-        {
-            node = node_array[node].right_get_link();
-        }
-        return node;
-    }
-}
-
 
 
 
@@ -915,7 +915,7 @@ public:
     
     void insert(index_type const &index)
     {
-
+        
     }
     
     void erase(index_type const &index)
@@ -932,8 +932,8 @@ private:
     {
         return collection_.get_key_comp();
     }
-
-
+    
+    
     
 };
 
