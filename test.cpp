@@ -20,7 +20,7 @@ int main(int argc, const char * argv[])
     thread_rb_tree<uint64_t, std::greater<uint64_t>, uint64_t> tree2(nullptr, nullptr);
     
     typedef threaded_rb_tree_node_t<uint32_t> node_t;
-    typedef threaded_rb_tree_root_t<node_t> root_t;
+    typedef threaded_rb_tree_root_t<node_t, std::false_type, std::false_type> root_t;
     
     size_t constexpr len = 10000;
     node_t *arr = new node_t[len];
@@ -36,7 +36,7 @@ int main(int argc, const char * argv[])
         data[i] = uni(mt);
     }
     
-    std::set<size_t> test;
+    std::multiset<size_t> test;
     root_t root;
     auto comp = [data](uint32_t l, uint32_t r){
         if(data[l] != data[r])
@@ -54,12 +54,12 @@ int main(int argc, const char * argv[])
     
     for(size_t i = 0; i < len; ++i)
     {
-        threaded_rb_tree_stack_t<node_t, 40> stack(root);
-        threaded_rb_tree_find_path_for_insert(stack, deref, uint32_t(i), comp);
-        threaded_rb_tree_insert(stack, deref, uint32_t(i));
+        threaded_rb_tree_stack_t<node_t, 40> stack;
+        threaded_rb_tree_find_path_for_insert(root, stack, deref, uint32_t(i), comp);
+        threaded_rb_tree_insert(root, stack, deref, uint32_t(i));
         test.emplace(data[i]);
         
-        uint32_t begin = root.left;
+        uint32_t begin = root.get_most_left(deref);
         uint32_t end = node_t::nil_sentinel;
         auto it = test.begin();
         for(; begin != end; begin = threaded_rb_tree_move_next(begin, deref), ++it)
@@ -67,7 +67,7 @@ int main(int argc, const char * argv[])
             assert(data[begin] == *it);
         }
 
-        uint32_t rbegin = root.right;
+        uint32_t rbegin = root.get_most_right(deref);
         uint32_t rend = node_t::nil_sentinel;
         auto rit = test.rbegin();
         for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, deref), ++rit)
@@ -78,13 +78,13 @@ int main(int argc, const char * argv[])
     
     for(size_t i = 0; i < len; ++i)
     {
-        threaded_rb_tree_stack_t<node_t, 40> stack(root);
-        bool find = threaded_rb_tree_find_path_for_remove(stack, deref, uint32_t(i), comp);
+        threaded_rb_tree_stack_t<node_t, 40> stack;
+        bool find = threaded_rb_tree_find_path_for_remove(root, stack, deref, uint32_t(i), comp);
         assert(find);
-        threaded_rb_tree_remove(stack, deref);
+        threaded_rb_tree_remove(root, stack, deref);
         test.erase(test.find(data[i]));
         
-        uint32_t begin = root.left;
+        uint32_t begin = root.get_most_left(deref);
         uint32_t end = node_t::nil_sentinel;
         auto it = test.begin();
         for(; begin != end; begin = threaded_rb_tree_move_next(begin, deref), ++it)
@@ -92,7 +92,7 @@ int main(int argc, const char * argv[])
             assert(data[begin] == *it);
         }
         
-        uint32_t rbegin = root.right;
+        uint32_t rbegin = root.get_most_right(deref);
         uint32_t rend = node_t::nil_sentinel;
         auto rit = test.rbegin();
         for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, deref), ++rit)
