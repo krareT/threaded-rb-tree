@@ -15,30 +15,29 @@ using thread_rb_tree = threaded_rb_tree_impl<threaded_rb_tree_collection<key_t, 
 
 int main(int argc, const char * argv[])
 {
-    thread_rb_tree<int, std::less<uint64_t>, uint16_t> tree0(nullptr, nullptr);
-    thread_rb_tree<uint32_t> tree1(nullptr, nullptr);
-    thread_rb_tree<uint64_t, std::greater<uint64_t>, uint64_t> tree2(nullptr, nullptr);
-    
-    typedef threaded_rb_tree_node_t<uint32_t> node_t;
-    typedef threaded_rb_tree_root_t<node_t, std::false_type, std::false_type> root_t;
+    typedef threaded_rb_tree_node_t<uint32_t> onode_t;
+    typedef threaded_rb_tree_ptr_t<size_t> pnode_t;
+    typedef threaded_rb_tree_root_t<onode_t, std::false_type, std::false_type> oroot_t;
+    typedef threaded_rb_tree_root_t<pnode_t, std::false_type, std::false_type> proot_t;
     
     size_t constexpr len = 10000;
-    node_t *arr = new node_t[len];
+    onode_t *oarr = new onode_t[len];
+    pnode_t *parr = new pnode_t[len];
     size_t *data = new size_t[len];
     
-    std::memset(arr, 0, sizeof(node_t) * len);
     std::memset(data, 0, sizeof(size_t) * len);
     
     std::mt19937 mt;
     std::uniform_int_distribution<double> uni(0, 100000000);
     for(size_t i = 0; i < len; ++i)
     {
-        data[i] = uni(mt);
+        parr[i].value = data[i] = uni(mt);
     }
     
     std::multiset<size_t> test;
-    root_t root;
-    auto comp = [data](uint32_t l, uint32_t r){
+    oroot_t oroot;
+    proot_t proot;
+    auto ocomp = [data](uint32_t l, uint32_t r){
         if(data[l] != data[r])
         {
             return data[l] < data[r];
@@ -48,60 +47,103 @@ int main(int argc, const char * argv[])
             return l < r;
         }
     };
-    auto deref = [arr](uint32_t i)->node_t &{
-        return arr[i];
+    auto pcomp = [](pnode_t *l, pnode_t *r){
+        if(l->value != r->value)
+        {
+            return l->value < r->value;
+        }
+        else
+        {
+            return l < r;
+        }
+    };
+    auto oderef = [oarr](uint32_t i)->onode_t &{
+        return oarr[i];
+    };
+    auto pderef = [](pnode_t *p)->pnode_t &{
+        return *p;
     };
     
     for(size_t i = 0; i < len; ++i)
     {
-        threaded_rb_tree_stack_t<node_t, 40> stack;
-        threaded_rb_tree_find_path_for_insert(root, stack, deref, uint32_t(i), comp);
-        threaded_rb_tree_insert(root, stack, deref, uint32_t(i));
+        threaded_rb_tree_stack_t<onode_t, 40> ostack;
+        threaded_rb_tree_find_path_for_insert(oroot, ostack, oderef, uint32_t(i), ocomp);
+        threaded_rb_tree_insert(oroot, ostack, oderef, uint32_t(i));
+        
+        threaded_rb_tree_stack_t<pnode_t, 40> pstack;
+        threaded_rb_tree_find_path_for_insert(proot, pstack, pderef, parr + i, pcomp);
+        threaded_rb_tree_insert(proot, pstack, pderef, parr + i);
+        
         test.emplace(data[i]);
         
-        uint32_t begin = root.get_most_left(deref);
-        uint32_t end = node_t::nil_sentinel;
-        auto it = test.begin();
-        for(; begin != end; begin = threaded_rb_tree_move_next(begin, deref), ++it)
+        uint32_t obegin = oroot.get_most_left(oderef);
+        uint32_t oend = onode_t::nil_sentinel;
+        pnode_t *pbegin = proot.get_most_left(pderef);
+        pnode_t *pend = pnode_t::nil_sentinel;
+        for(auto it = test.begin(); it != test.end(); obegin = threaded_rb_tree_move_next(obegin, oderef), pbegin = threaded_rb_tree_move_next(pbegin, pderef), ++it)
         {
-            assert(data[begin] == *it);
+            assert(data[obegin] == *it);
+            assert(pderef(pbegin).value == *it);
         }
+        assert(obegin == oend);
+        assert(pbegin == pend);
 
-        uint32_t rbegin = root.get_most_right(deref);
-        uint32_t rend = node_t::nil_sentinel;
-        auto rit = test.rbegin();
-        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, deref), ++rit)
+        uint32_t orbegin = oroot.get_most_right(oderef);
+        uint32_t orend = onode_t::nil_sentinel;
+        pnode_t *prbegin = proot.get_most_right(pderef);
+        pnode_t *prend = pnode_t::nil_sentinel;
+        for(auto rit = test.rbegin(); rit != test.rend(); orbegin = threaded_rb_tree_move_prev(orbegin, oderef), prbegin = threaded_rb_tree_move_prev(prbegin, pderef), ++rit)
         {
-            assert(data[rbegin] == *rit);
+            assert(data[orbegin] == *rit);
+            assert(pderef(prbegin).value == *rit);
         }
+        assert(orbegin == orend);
+        assert(prbegin == prend);
     }
     
     for(size_t i = 0; i < len; ++i)
     {
-        threaded_rb_tree_stack_t<node_t, 40> stack;
-        bool find = threaded_rb_tree_find_path_for_remove(root, stack, deref, uint32_t(i), comp);
+        bool find;
+        
+        threaded_rb_tree_stack_t<onode_t, 40> ostack;
+        find = threaded_rb_tree_find_path_for_remove(oroot, ostack, oderef, uint32_t(i), ocomp);
         assert(find);
-        threaded_rb_tree_remove(root, stack, deref);
+        threaded_rb_tree_remove(oroot, ostack, oderef);
+        
+        threaded_rb_tree_stack_t<pnode_t, 40> pstack;
+        find = threaded_rb_tree_find_path_for_remove(proot, pstack, pderef, parr + i, pcomp);
+        assert(find);
+        threaded_rb_tree_remove(proot, pstack, pderef);
+        
         test.erase(test.find(data[i]));
         
-        uint32_t begin = root.get_most_left(deref);
-        uint32_t end = node_t::nil_sentinel;
-        auto it = test.begin();
-        for(; begin != end; begin = threaded_rb_tree_move_next(begin, deref), ++it)
+        uint32_t obegin = oroot.get_most_left(oderef);
+        uint32_t oend = onode_t::nil_sentinel;
+        pnode_t *pbegin = proot.get_most_left(pderef);
+        pnode_t *pend = pnode_t::nil_sentinel;
+        for(auto it = test.begin(); it != test.end(); obegin = threaded_rb_tree_move_next(obegin, oderef), pbegin = threaded_rb_tree_move_next(pbegin, pderef), ++it)
         {
-            assert(data[begin] == *it);
+            assert(data[obegin] == *it);
+            assert(pderef(pbegin).value == *it);
         }
+        assert(obegin == oend);
+        assert(pbegin == pend);
         
-        uint32_t rbegin = root.get_most_right(deref);
-        uint32_t rend = node_t::nil_sentinel;
-        auto rit = test.rbegin();
-        for(; rbegin != rend; rbegin = threaded_rb_tree_move_prev(rbegin, deref), ++rit)
+        uint32_t orbegin = oroot.get_most_right(oderef);
+        uint32_t orend = onode_t::nil_sentinel;
+        pnode_t *prbegin = proot.get_most_right(pderef);
+        pnode_t *prend = pnode_t::nil_sentinel;
+        for(auto rit = test.rbegin(); rit != test.rend(); orbegin = threaded_rb_tree_move_prev(orbegin, oderef), prbegin = threaded_rb_tree_move_prev(prbegin, pderef), ++rit)
         {
-            assert(data[rbegin] == *rit);
+            assert(data[orbegin] == *rit);
+            assert(pderef(prbegin).value == *rit);
         }
+        assert(orbegin == orend);
+        assert(prbegin == prend);
     }
-    delete[] arr;
     delete[] data;
+    delete[] parr;
+    delete[] oarr;
     
     return 0;
 }

@@ -16,7 +16,6 @@ struct threaded_rb_tree_node_t
     static index_type constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
     
     static index_type constexpr nil_sentinel = ~index_type(0) & ~full_bit_mask;
-    static index_type constexpr null_sentinel = nil_sentinel - 1;
     
     bool left_is_child() const
     {
@@ -67,6 +66,89 @@ struct threaded_rb_tree_node_t
     index_type right_get_link() const
     {
         return children[1] & ~full_bit_mask;
+    }
+    
+    bool is_black() const
+    {
+        return (children[0] & flag_bit_mask) == 0;
+    }
+    void set_black()
+    {
+        children[0] &= ~flag_bit_mask;
+    }
+    bool is_red() const
+    {
+        return (children[0] & flag_bit_mask) != 0;
+    }
+    void set_red()
+    {
+        children[0] |= flag_bit_mask;
+    }
+};
+
+template<class T>
+struct threaded_rb_tree_ptr_t
+{
+    typedef threaded_rb_tree_ptr_t *index_type;
+    
+    std::uintptr_t children[2];
+    T value;
+    
+    static std::uintptr_t constexpr flag_bit_mask = std::uintptr_t(1);
+    static std::uintptr_t constexpr type_bit_mask = std::uintptr_t(2);
+    static std::uintptr_t constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
+    
+    static index_type constexpr nil_sentinel = nullptr;
+    
+    bool left_is_child() const
+    {
+        return (children[0] & type_bit_mask) == 0;
+    }
+    bool right_is_child() const
+    {
+        return (children[1] & type_bit_mask) == 0;
+    }
+    bool left_is_thread() const
+    {
+        return (children[0] & type_bit_mask) != 0;
+    }
+    bool right_is_thread() const
+    {
+        return (children[1] & type_bit_mask) != 0;
+    }
+    
+    void left_set_child()
+    {
+        children[0] &= ~type_bit_mask;
+    }
+    void right_set_child()
+    {
+        children[1] &= ~type_bit_mask;
+    }
+    void left_set_thread()
+    {
+        children[0] |= type_bit_mask;
+    }
+    void right_set_thread()
+    {
+        children[1] |= type_bit_mask;
+    }
+    
+    void left_set_link(index_type const link)
+    {
+        children[0] = (children[0] & full_bit_mask) | std::uintptr_t(link);
+    }
+    void right_set_link(index_type const link)
+    {
+        children[1] = (children[1] & full_bit_mask) | std::uintptr_t(link);
+    }
+    index_type left_get_link() const
+    {
+        return index_type(children[0] & ~full_bit_mask);
+    }
+    index_type right_get_link() const
+    {
+        return index_type(children[1] & ~full_bit_mask);
     }
     
     bool is_black() const
@@ -302,8 +384,9 @@ struct threaded_rb_tree_stack_t
 {
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
+    typedef decltype(node_type::flag_bit_mask) mask_type;
     
-    static index_type constexpr dir_bit_mask = index_type(1) << (sizeof(index_type) * 8 - 1);
+    static mask_type constexpr dir_bit_mask = node_type::flag_bit_mask;
     
     threaded_rb_tree_stack_t()
     {
@@ -316,17 +399,17 @@ struct threaded_rb_tree_stack_t
     bool is_left(size_t i) const
     {
         assert(i < max_depth);
-        return (stack[i] & dir_bit_mask) == 0;
+        return (mask_type(stack[i]) & dir_bit_mask) == 0;
     }
     bool is_right(size_t i) const
     {
         assert(i < max_depth);
-        return (stack[i] & dir_bit_mask) != 0;
+        return (mask_type(stack[i]) & dir_bit_mask) != 0;
     }
     index_type get_index(size_t i) const
     {
         assert(i < max_depth);
-        return stack[i] & ~dir_bit_mask;
+        return index_type(mask_type(stack[i]) & ~dir_bit_mask);
     }
     void push_index(index_type const &index, bool left)
     {
@@ -334,17 +417,17 @@ struct threaded_rb_tree_stack_t
         {
             throw std::length_error("thread_tb_tree_stack overflow");
         }
-        stack[height++] = index | (left ? 0 : dir_bit_mask);
+        stack[height++] = index_type(mask_type(index) | (left ? 0 : dir_bit_mask));
     }
     void update_index(size_t k, index_type const &index, bool left)
     {
         assert(k < max_depth);
-        stack[k] = index | (left ? 0 : dir_bit_mask);
+        stack[k] = index_type(mask_type(index) | (left ? 0 : dir_bit_mask));
     }
     void update_index(size_t k, index_type const &index)
     {
         assert(k < max_depth);
-        stack[k] = index | (stack[k] & dir_bit_mask);
+        stack[k] = index_type(mask_type(index) | (mask_type(stack[k]) & dir_bit_mask));
     }
 };
 
