@@ -16,6 +16,7 @@ struct threaded_rb_tree_node_t
     static index_type constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
     
     static index_type constexpr nil_sentinel = ~index_type(0) & ~full_bit_mask;
+    static index_type constexpr free_sentinel = nil_sentinel - 1;
     
     bool left_is_child() const
     {
@@ -51,11 +52,11 @@ struct threaded_rb_tree_node_t
         children[1] |= type_bit_mask;
     }
     
-    void left_set_link(index_type const &link)
+    void left_set_link(index_type link)
     {
         children[0] = (children[0] & full_bit_mask) | link;
     }
-    void right_set_link(index_type const &link)
+    void right_set_link(index_type link)
     {
         children[1] = (children[1] & full_bit_mask) | link;
     }
@@ -66,89 +67,6 @@ struct threaded_rb_tree_node_t
     index_type right_get_link() const
     {
         return children[1] & ~full_bit_mask;
-    }
-    
-    bool is_black() const
-    {
-        return (children[0] & flag_bit_mask) == 0;
-    }
-    void set_black()
-    {
-        children[0] &= ~flag_bit_mask;
-    }
-    bool is_red() const
-    {
-        return (children[0] & flag_bit_mask) != 0;
-    }
-    void set_red()
-    {
-        children[0] |= flag_bit_mask;
-    }
-};
-
-template<class T>
-struct threaded_rb_tree_ptr_t
-{
-    typedef threaded_rb_tree_ptr_t *index_type;
-    
-    std::uintptr_t children[2];
-    T value;
-    
-    static std::uintptr_t constexpr flag_bit_mask = std::uintptr_t(1);
-    static std::uintptr_t constexpr type_bit_mask = std::uintptr_t(2);
-    static std::uintptr_t constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
-    
-    static index_type constexpr nil_sentinel = nullptr;
-    
-    bool left_is_child() const
-    {
-        return (children[0] & type_bit_mask) == 0;
-    }
-    bool right_is_child() const
-    {
-        return (children[1] & type_bit_mask) == 0;
-    }
-    bool left_is_thread() const
-    {
-        return (children[0] & type_bit_mask) != 0;
-    }
-    bool right_is_thread() const
-    {
-        return (children[1] & type_bit_mask) != 0;
-    }
-    
-    void left_set_child()
-    {
-        children[0] &= ~type_bit_mask;
-    }
-    void right_set_child()
-    {
-        children[1] &= ~type_bit_mask;
-    }
-    void left_set_thread()
-    {
-        children[0] |= type_bit_mask;
-    }
-    void right_set_thread()
-    {
-        children[1] |= type_bit_mask;
-    }
-    
-    void left_set_link(index_type const link)
-    {
-        children[0] = (children[0] & full_bit_mask) | std::uintptr_t(link);
-    }
-    void right_set_link(index_type const link)
-    {
-        children[1] = (children[1] & full_bit_mask) | std::uintptr_t(link);
-    }
-    index_type left_get_link() const
-    {
-        return index_type(children[0] & ~full_bit_mask);
-    }
-    index_type right_get_link() const
-    {
-        return index_type(children[1] & ~full_bit_mask);
     }
     
     bool is_black() const
@@ -261,44 +179,44 @@ struct threaded_rb_tree_most_t
     {
     }
     
-    template<class dereference_t> index_type get_left(index_type const &, dereference_t const &) const
+    template<class dereference_t> index_type get_left(index_type , dereference_t const &) const
     {
         return left;
     }
-    template<class dereference_t> index_type get_right(index_type const &, dereference_t const &) const
+    template<class dereference_t> index_type get_right(index_type , dereference_t const &) const
     {
         return right;
     }
-    void set_left(index_type const &value)
+    void set_left(index_type value)
     {
         left = value;
     }
-    void set_right(index_type const &value)
+    void set_right(index_type value)
     {
         right = value;
     }
-    void update_left(index_type const &check, index_type const &value)
+    void update_left(index_type check, index_type value)
     {
         if(check == left)
         {
             left = value;
         }
     }
-    void update_right(index_type const &check, index_type const &value)
+    void update_right(index_type check, index_type value)
     {
         if(check == right)
         {
             right = value;
         }
     }
-    template<class dereference_t> void detach_left(index_type const &value, dereference_t const &deref)
+    template<class dereference_t> void detach_left(index_type value, dereference_t const &deref)
     {
         if(value == left)
         {
             left = threaded_rb_tree_move_next(left, deref);
         }
     }
-    template<class dereference_t> void detach_right(index_type const &value, dereference_t const &deref)
+    template<class dereference_t> void detach_right(index_type value, dereference_t const &deref)
     {
         if(value == right)
         {
@@ -312,7 +230,7 @@ struct threaded_rb_tree_most_t<node_t, std::false_type>
     typedef node_t node_type;
     typedef typename node_type::index_type index_type;
     
-    template<class dereference_t> index_type get_left(index_type const &root, dereference_t const &deref) const
+    template<class dereference_t> index_type get_left(index_type root, dereference_t const &deref) const
     {
         index_type node = root;
         if(root != node_type::nil_sentinel)
@@ -324,7 +242,7 @@ struct threaded_rb_tree_most_t<node_t, std::false_type>
         }
         return node;
     }
-    template<class dereference_t> index_type get_right(index_type const &root, dereference_t const &deref) const
+    template<class dereference_t> index_type get_right(index_type root, dereference_t const &deref) const
     {
         index_type node = root;
         if(root != node_type::nil_sentinel)
@@ -336,22 +254,22 @@ struct threaded_rb_tree_most_t<node_t, std::false_type>
         }
         return node;
     }
-    void set_left(index_type const &)
+    void set_left(index_type )
     {
     }
-    void set_right(index_type const &)
+    void set_right(index_type )
     {
     }
-    void update_left(index_type const &, index_type const &)
+    void update_left(index_type , index_type )
     {
     }
-    void update_right(index_type const &, index_type const &)
+    void update_right(index_type , index_type )
     {
     }
-    template<class dereference_t> void detach_left(index_type const &, dereference_t const &)
+    template<class dereference_t> void detach_left(index_type , dereference_t const &)
     {
     }
-    template<class dereference_t> void detach_right(index_type const &, dereference_t const &)
+    template<class dereference_t> void detach_right(index_type , dereference_t const &)
     {
     }
 };
@@ -418,7 +336,7 @@ struct threaded_rb_tree_stack_t
         assert(i < max_depth);
         return index_type(mask_type(stack[i]) & ~dir_bit_mask);
     }
-    void push_index(index_type const &index, bool left)
+    void push_index(index_type index, bool left)
     {
         if(height == max_depth)
         {
@@ -426,12 +344,12 @@ struct threaded_rb_tree_stack_t
         }
         stack[height++] = index_type(mask_type(index) | (left ? 0 : dir_bit_mask));
     }
-    void update_index(size_t k, index_type const &index, bool left)
+    void update_index(size_t k, index_type index, bool left)
     {
         assert(k < max_depth);
         stack[k] = index_type(mask_type(index) | (left ? 0 : dir_bit_mask));
     }
-    void update_index(size_t k, index_type const &index)
+    void update_index(size_t k, index_type index)
     {
         assert(k < max_depth);
         stack[k] = index_type(mask_type(index) | (mask_type(stack[k]) & dir_bit_mask));
@@ -439,7 +357,7 @@ struct threaded_rb_tree_stack_t
 };
 
 template<class root_t, class comparator_t, class deref_node_t, size_t max_depth>
-void threaded_rb_tree_find_path_for_multi(root_t &root, threaded_rb_tree_stack_t<typename root_t::node_type, max_depth> &stack, deref_node_t const &deref, typename root_t::index_type const &index, comparator_t const &comparator)
+void threaded_rb_tree_find_path_for_multi(root_t &root, threaded_rb_tree_stack_t<typename root_t::node_type, max_depth> &stack, deref_node_t const &deref, typename root_t::index_type index, comparator_t const &comparator)
 {
     typedef typename root_t::node_type node_type;
     typedef typename root_t::index_type index_type;
@@ -504,7 +422,7 @@ bool threaded_rb_tree_find_path_for_unique(root_t &root, threaded_rb_tree_stack_
 }
 
 template<class root_t, class comparator_t, class deref_node_t, size_t max_depth>
-bool threaded_rb_tree_find_path_for_remove(root_t &root, threaded_rb_tree_stack_t<typename root_t::node_type, max_depth> &stack, deref_node_t const &deref, typename root_t::index_type const &index, comparator_t const &comparator)
+bool threaded_rb_tree_find_path_for_remove(root_t &root, threaded_rb_tree_stack_t<typename root_t::node_type, max_depth> &stack, deref_node_t const &deref, typename root_t::index_type index, comparator_t const &comparator)
 {
     typedef typename root_t::node_type node_type;
     typedef typename root_t::index_type index_type;
@@ -540,7 +458,7 @@ bool threaded_rb_tree_find_path_for_remove(root_t &root, threaded_rb_tree_stack_
 
 
 template<class root_t, class dereference_t, size_t max_depth>
-void threaded_rb_tree_insert(root_t &root, threaded_rb_tree_stack_t<typename root_t::node_type, max_depth> &stack, dereference_t const &deref, typename root_t::index_type const &index)
+void threaded_rb_tree_insert(root_t &root, threaded_rb_tree_stack_t<typename root_t::node_type, max_depth> &stack, dereference_t const &deref, typename root_t::index_type index)
 {
     typedef typename root_t::node_type node_type;
     typedef typename root_t::index_type index_type;
@@ -1103,20 +1021,22 @@ protected:
     
     typedef threaded_rb_tree_root_t<node_type, std::true_type, std::true_type> root_node_t;
     
-    static size_type constexpr stack_max_depth = sizeof(index_type) * 10;
+    static size_type constexpr stack_max_depth = sizeof(index_type) * 12;
     
     struct root_t : public threaded_rb_tree_root_t<node_type, std::true_type, std::true_type>, public key_compare
     {
         template<class any_key_compare> root_t(any_key_compare &&comp) : key_compare(std::forward<any_key_compare>(comp))
         {
+            free = node_type::nil_sentinel;
         }
         container_type container;
+        index_type free;
     };
     
     
     struct deref_node_t
     {
-        node_type &operator()(index_type const &index) const
+        node_type &operator()(index_type index) const
         {
             return config_t::get_node(*container_ptr, index);
         }
@@ -1124,7 +1044,7 @@ protected:
     };
     struct deref_value_t
     {
-        storage_type &operator()(index_type const &index) const
+        storage_type &operator()(index_type index) const
         {
             return config_t::get_value(*container_ptr, index);
         }
@@ -1139,6 +1059,10 @@ protected:
         key_type const &operator()(storage_type const &value) const
         {
             return config_t::get_key(value);
+        }
+        template<class first_t, class second_t> key_type operator()(std::pair<first_t, second_t> const &pair)
+        {
+            return key_type(pair.first);
         }
         template<class in_t, class ...args_t> key_type operator()(in_t const &in, args_t const &...args) const
         {
@@ -1159,7 +1083,7 @@ protected:
     typedef get_key_select_t<key_type, storage_type> get_key_t;
     struct key_compare_ex
     {
-        bool operator()(index_type const &left, index_type const &right) const
+        bool operator()(index_type left, index_type right) const
         {
             key_compare &compare = *root_ptr;
             auto &left_value = config_t::get_value(root_ptr->container, left);
@@ -1190,7 +1114,7 @@ public:
         typedef typename threaded_rb_tree_impl::reference reference;
         typedef typename threaded_rb_tree_impl::pointer pointer;
     public:
-        explicit iterator(threaded_rb_tree_impl *in_tree, index_type const &in_where) : tree(in_tree), where(in_where)
+        explicit iterator(threaded_rb_tree_impl *in_tree, index_type in_where) : tree(in_tree), where(in_where)
         {
         }
         iterator(iterator const &) = default;
@@ -1207,7 +1131,7 @@ public:
             }
             else
             {
-                where = threaded_rb_tree_move_prev(where);
+                where = threaded_rb_tree_move_prev(where, deref_node_t{&tree->root_.container});
             }
             return *this;
         }
@@ -1255,7 +1179,7 @@ public:
         typedef typename threaded_rb_tree_impl::pointer pointer;
         typedef typename threaded_rb_tree_impl::const_pointer const_pointer;
     public:
-        explicit const_iterator(threaded_rb_tree_impl *in_tree, index_type const &in_where) : tree(in_tree), where(in_where)
+        explicit const_iterator(threaded_rb_tree_impl *in_tree, index_type in_where) : tree(in_tree), where(in_where)
         {
         }
         const_iterator(iterator const &other) : tree(other.tree), where(other.where)
@@ -1275,7 +1199,7 @@ public:
             }
             else
             {
-                where = threaded_rb_tree_move_prev(where);
+                where = threaded_rb_tree_move_prev(where, deref_node_t{&tree->root_.container});
             }
             return *this;
         }
@@ -1321,7 +1245,7 @@ public:
         typedef typename threaded_rb_tree_impl::reference reference;
         typedef typename threaded_rb_tree_impl::pointer pointer;
     public:
-        explicit reverse_iterator(threaded_rb_tree_impl *in_tree, index_type const &in_where) : tree(in_tree), where(in_where)
+        explicit reverse_iterator(threaded_rb_tree_impl *in_tree, index_type in_where) : tree(in_tree), where(in_where)
         {
         }
         explicit reverse_iterator(iterator const &other) : tree(other.tree), where(other.where)
@@ -1342,7 +1266,7 @@ public:
             }
             else
             {
-                where = threaded_rb_tree_move_next(where);
+                where = threaded_rb_tree_move_next(where, deref_node_t{&tree->root_.container});
             }
             return *this;
         }
@@ -1394,7 +1318,7 @@ public:
         typedef typename threaded_rb_tree_impl::pointer pointer;
         typedef typename threaded_rb_tree_impl::const_pointer const_pointer;
     public:
-        explicit const_reverse_iterator(threaded_rb_tree_impl *in_tree, index_type const &in_where) : tree(in_tree), where(in_where)
+        explicit const_reverse_iterator(threaded_rb_tree_impl *in_tree, index_type in_where) : tree(in_tree), where(in_where)
         {
         }
         explicit const_reverse_iterator(const_iterator const &other) : tree(other.tree), where(other.where)
@@ -1418,7 +1342,7 @@ public:
             }
             else
             {
-                where = threaded_rb_tree_move_next(where);
+                where = threaded_rb_tree_move_next(where, deref_node_t{&tree->root_.container});
             }
             return *this;
         }
@@ -1489,7 +1413,7 @@ public:
     //copy
     threaded_rb_tree_impl(threaded_rb_tree_impl const &other) : root_(other.get_comparator_())
     {
-        //TODO
+        root_ = other.root_;
     }
     //move
     threaded_rb_tree_impl(threaded_rb_tree_impl &&other) : root_(key_compare())
@@ -1543,35 +1467,35 @@ public:
     typedef std::pair<const_iterator, const_iterator> pair_cici_t;
     
     //single element
-    iterator insert(value_type const &value)
+    insert_result_t insert(value_type const &value)
     {
         check_max_size_();
-        return iterator(trb_insert_<false>(trb_create_node_(value)));
+        return result_<typename config_t::unique_type>(trb_insert_(typename config_t::unique_type(), value));
     }
     //single element
-    template<class in_value_t> typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, iterator>::type insert(in_value_t &&value)
+    template<class in_value_t> typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, insert_result_t>::type insert(in_value_t &&value)
     {
         check_max_size_();
-        return iterator(trb_insert_<false>(trb_create_node_(std::forward<in_value_t>(value))));
+        return result_<typename config_t::unique_type>(trb_insert_(typename config_t::unique_type(), std::forward<in_value_t>(value)));
     }
     //with hint
     iterator insert(const_iterator hint, value_type const &value)
     {
         check_max_size_();
-        return iterator(trb_insert_hint_(hint.node, trb_create_node_(value)));
+        return result_<std::false_type>(trb_insert_(typename config_t::unique_type(), value));
     }
     //with hint
-    template<class in_value_t> typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, iterator>::type insert(const_iterator hint, in_value_t &&value)
+    template<class in_value_t> typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, insert_result_t>::type insert(const_iterator hint, in_value_t &&value)
     {
         check_max_size_();
-        return iterator(trb_insert_hint_(hint.node, trb_create_node_(std::forward<in_value_t>(value))));
+        return result_<typename config_t::unique_type>(trb_insert_(typename config_t::unique_type(), std::forward<in_value_t>(value)));
     }
     //range
     template<class iterator_t> void insert(iterator_t begin, iterator_t end)
     {
         for(; begin != end; ++begin)
         {
-            emplace_hint(cend(), *begin);
+            emplace(*begin);
         }
     }
     //initializer list
@@ -1582,6 +1506,12 @@ public:
     
     //single element
     template<class ...args_t> insert_result_t emplace(args_t &&...args)
+    {
+        check_max_size_();
+        return result_<typename config_t::unique_type>(trb_insert_(typename config_t::unique_type(), std::forward<args_t>(args)...));
+    }
+    //with hint
+    template<class ...args_t> insert_result_t emplace_hint(const_iterator hint, args_t &&...args)
     {
         check_max_size_();
         return result_<typename config_t::unique_type>(trb_insert_(typename config_t::unique_type(), std::forward<args_t>(args)...));
@@ -1600,19 +1530,19 @@ public:
     
     iterator erase(const_iterator where)
     {
-        const_iterator pos = std::next(where);
-        trb_erase_(where.node);
-        return iterator(pos.node);
+        auto index = threaded_rb_tree_move_next(where.where, deref_node_t{&root_.container});
+        trb_erase_(where.where);
+        return iterator(this, index);
     }
     size_type erase(key_type const &key)
     {
         size_type erase_count = 0;
-        index_type where = bst_lower_bound_(key);
-        while(where != node_type::nil_sentinel && !get_comparator_()(key, get_key_(where)))
+        while(trb_erase_(key))
         {
-            index_type next = threaded_rb_tree_move_next(where, deref_node_t{&root_.container});
-            erase(iterator(where));
-            where = next;
+            if(config_t::unique_type::value)
+            {
+                break;
+            }
             ++erase_count;
         }
         return erase_count;
@@ -1638,31 +1568,6 @@ public:
     {
         pair_cici_t range = equal_range(key);
         return std::distance(range.first, range.second);
-    }
-    size_type count(key_type const &min, key_type const &max) const
-    {
-        if(get_comparator_()(max, min))
-        {
-            return 0;
-        }
-        return trb_rank_(bst_upper_bound_(max)) - trb_rank_(bst_lower_bound_(min));
-    }
-    
-    pair_ii_t range(key_type const &min, key_type const &max)
-    {
-        if(get_comparator_()(max, min))
-        {
-            return pair_ii_t(end(), end());
-        }
-        return pair_ii_t(iterator(bst_lower_bound_(min)), iterator(bst_upper_bound_(max)));
-    }
-    pair_cici_t range(key_type const &min, key_type const &max) const
-    {
-        if(get_comparator_()(max, min))
-        {
-            return pair_cici_t(cend(), cend());
-        }
-        return pair_cici_t(const_iterator(bst_lower_bound_(min)), const_iterator(bst_upper_bound_(max)));
     }
     
     iterator lower_bound(key_type const &key)
@@ -1701,7 +1606,7 @@ public:
     }
     iterator end()
     {
-        return iterator(this, index_type(node_type::nil_sentinel));
+        return iterator(this, node_type::nil_sentinel);
     }
     const_iterator begin() const
     {
@@ -1709,7 +1614,7 @@ public:
     }
     const_iterator end() const
     {
-        return const_iterator(this, index_type(node_type::nil_sentinel));
+        return const_iterator(this, node_type::nil_sentinel);
     }
     const_iterator cbegin() const
     {
@@ -1717,7 +1622,7 @@ public:
     }
     const_iterator cend() const
     {
-        return const_iterator(this, index_type(node_type::nil_sentinel));
+        return const_iterator(this, node_type::nil_sentinel);
     }
     reverse_iterator rbegin()
     {
@@ -1725,7 +1630,7 @@ public:
     }
     reverse_iterator rend()
     {
-        return reverse_iterator(this, index_type(node_type::nil_sentinel));
+        return reverse_iterator(this, node_type::nil_sentinel);
     }
     const_reverse_iterator rbegin() const
     {
@@ -1733,7 +1638,7 @@ public:
     }
     const_reverse_iterator rend() const
     {
-        return const_reverse_iterator(this, index_type(node_type::nil_sentinel));
+        return const_reverse_iterator(this, node_type::nil_sentinel);
     }
     const_reverse_iterator crbegin() const
     {
@@ -1741,7 +1646,7 @@ public:
     }
     const_reverse_iterator crend() const
     {
-        return const_reverse_iterator(this, index_type(node_type::nil_sentinel));
+        return const_reverse_iterator(this, node_type::nil_sentinel);
     }
     
     bool empty() const
@@ -1750,7 +1655,7 @@ public:
     }
     void clear()
     {
-        //TODO
+        trb_clear_();
     }
     size_type size() const
     {
@@ -1774,9 +1679,29 @@ protected:
         return root_;
     }
     
-    key_type get_key_(index_type const &index) const
+    key_type get_key_(index_type index) const
     {
         return get_key_t()(config_t::get_value(root_.container, index));
+    }
+    
+    index_type alloc_index_()
+    {
+        if(root_.free == node_type::nil_sentinel)
+        {
+            return config_t::alloc_index(root_.container);
+        }
+        auto deref = deref_node_t{&root_.container};
+        index_type index = root_.free;
+        root_.free = deref(index).left_get_link();
+        return index;
+    }
+    
+    void dealloc_index_(index_type index)
+    {
+        auto deref = deref_node_t{&root_.container};
+        deref(index).left_set_link(root_.free);
+        deref(index).right_set_link(node_type::free_sentinel);
+        root_.free = index;
     }
     
     index_type bst_lower_bound_(key_type const &key) const
@@ -1862,8 +1787,9 @@ protected:
     template<class arg_first_t, class ...args_other_t> pair_posi_t trb_insert_(std::false_type, arg_first_t &&arg_first, args_other_t &&...args_other)
     {
         threaded_rb_tree_stack_t<node_type, stack_max_depth> stack;
-        index_type index = config_t::alloc_index(root_.container);
-        config_t::get_value(root_.container, index) = storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
+        index_type index = alloc_index_();
+        auto &value = config_t::get_value(root_.container, index);
+        ::new(&value) storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
         threaded_rb_tree_find_path_for_multi(root_, stack, deref_node_t{&root_.container}, index, key_compare_ex{&root_});
         threaded_rb_tree_insert(root_, stack, deref_node_t{&root_.container}, index);
         return {index, true};
@@ -1878,23 +1804,55 @@ protected:
         {
             return {stack.get_index(stack.height - 1), false};
         }
-        index_type index = config_t::alloc_index(root_.container);
-        config_t::get_value(root_.container, index) = storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
+        index_type index = alloc_index_();
+        auto &value = config_t::get_value(root_.container, index);
+        ::new(&value) storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
         threaded_rb_tree_insert(root_, stack, deref_node_t{&root_.container}, index);
         return {index, true};
     }
     
-    void trb_erase_(index_type const &index)
+    bool trb_erase_(key_type const &key)
+    {
+        threaded_rb_tree_stack_t<node_type, stack_max_depth> stack;
+        bool exists = threaded_rb_tree_find_path_for_unique(root_, stack, deref_node_t{&root_.container}, key, deref_value_t{&root_.container}, get_key_t(), get_comparator_());
+        if(!exists)
+        {
+            return false;
+        }
+        auto &value = config_t::get_value(root_.container, index);
+        value.~storage_type();
+        dealloc_index_(stack.height - 1);
+        threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
+        return true;
+    }
+    
+    void trb_erase_(index_type index)
     {
         threaded_rb_tree_stack_t<node_type, stack_max_depth> stack;
         bool exists = threaded_rb_tree_find_path_for_remove(root_, stack, deref_node_t{&root_.container}, index, key_compare_ex{&root_});
         assert(exists);
+        auto &value = config_t::get_value(root_.container, index);
+        value.~storage_type();
+        dealloc_index_(stack.height - 1);
         threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
     }
     
     void trb_clear_()
     {
-        //TODO
+        auto deref = deref_node_t{&root_.container};
+        auto deref_value = deref_value_t{&root_.container};
+        root_.root.root = node_type::nil_sentinel;
+        root_.root.set_left(node_type::nil_sentinel);
+        root_.root.set_right(node_type::nil_sentinel);
+        root_.free = node_type::nil_sentinel;
+        for(index_type i = 0; i < root_.get_count(); ++i)
+        {
+            if(deref(i).right_get_link() != node_type::free_sentinel)
+            {
+                deref_value(i).~storage_type();
+            }
+        }
+        root_.container.clear();
     }
 };
 
@@ -1911,18 +1869,18 @@ struct threaded_rb_tree_default_set_config_t
     struct element_type
     {
         node_type node;
-        storage_type value;
+        uint8_t value[sizeof(storage_type)];
     };
     typedef std::vector<element_type> container_type;
     typedef unique_t unique_type;
     
-    static node_type &get_node(container_type &container, typename node_type::index_type const &index)
+    static node_type &get_node(container_type &container, typename node_type::index_type index)
     {
         return container[index].node;
     }
-    static storage_type &get_value(container_type &container, typename node_type::index_type const &index)
+    static storage_type &get_value(container_type &container, typename node_type::index_type index)
     {
-        return container[index].value;
+        return reinterpret_cast<storage_type &>(container[index].value);
     }
     static typename node_type::index_type alloc_index(container_type &container)
     {
@@ -1951,18 +1909,18 @@ struct threaded_rb_tree_default_map_config_t
     struct element_type
     {
         node_type node;
-        storage_type value;
+        uint8_t value[sizeof(storage_type)];
     };
     typedef std::vector<element_type> container_type;
     typedef unique_t unique_type;
     
-    static node_type &get_node(container_type &container, typename node_type::index_type const &index)
+    static node_type &get_node(container_type &container, typename node_type::index_type index)
     {
         return container[index].node;
     }
-    static storage_type &get_value(container_type &container, typename node_type::index_type const &index)
+    static storage_type &get_value(container_type &container, typename node_type::index_type index)
     {
-        return container[index].value;
+        return reinterpret_cast<storage_type &>(container[index].value);
     }
     static typename node_type::index_type alloc_index(container_type &container)
     {
