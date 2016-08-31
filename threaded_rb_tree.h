@@ -51,11 +51,11 @@ struct threaded_rb_tree_node_t
         children[1] |= type_bit_mask;
     }
     
-    void left_set_link(index_type const link)
+    void left_set_link(index_type const &link)
     {
         children[0] = (children[0] & full_bit_mask) | link;
     }
-    void right_set_link(index_type const link)
+    void right_set_link(index_type const &link)
     {
         children[1] = (children[1] & full_bit_mask) | link;
     }
@@ -277,16 +277,16 @@ struct threaded_rb_tree_most_t
     {
         right = value;
     }
-    void update_left(index_type const &value)
+    void update_left(index_type const &check, index_type const &value)
     {
-        if(value == left)
+        if(check == left)
         {
             left = value;
         }
     }
-    void update_right(index_type const &value)
+    void update_right(index_type const &check, index_type const &value)
     {
-        if(value == right)
+        if(check == right)
         {
             right = value;
         }
@@ -342,10 +342,10 @@ struct threaded_rb_tree_most_t<node_t, std::false_type>
     void set_right(index_type const &)
     {
     }
-    void update_left(index_type const &)
+    void update_left(index_type const &, index_type const &)
     {
     }
-    void update_right(index_type const &)
+    void update_right(index_type const &, index_type const &)
     {
     }
     template<class dereference_t> void detach_left(index_type const &, dereference_t const &)
@@ -551,8 +551,8 @@ void threaded_rb_tree_insert(root_t &root, threaded_rb_tree_stack_t<typename roo
     
     if(stack.height == 0)
     {
-        deref(index).left_set_link(node_type::nil_sentinel);
-        deref(index).right_set_link(node_type::nil_sentinel);
+        deref(index).left_set_link(index_type(node_type::nil_sentinel));
+        deref(index).right_set_link(index_type(node_type::nil_sentinel));
         deref(index).set_black();
         root.root.root = index;
         root.root.set_left(index);
@@ -568,7 +568,7 @@ void threaded_rb_tree_insert(root_t &root, threaded_rb_tree_stack_t<typename roo
         deref(index).right_set_link(where);
         deref(where).left_set_child();
         deref(where).left_set_link(index);
-        root.root.update_left(where);
+        root.root.update_left(where, index);
     }
     else
     {
@@ -576,7 +576,7 @@ void threaded_rb_tree_insert(root_t &root, threaded_rb_tree_stack_t<typename roo
         deref(index).left_set_link(where);
         deref(where).right_set_child();
         deref(where).right_set_link(index);
-        root.root.update_right(where);
+        root.root.update_right(where, index);
     }
     if(k >= 1)
     {
@@ -794,9 +794,8 @@ void threaded_rb_tree_remove(root_t &root, threaded_rb_tree_stack_t<typename roo
             {
                 deref(stack.get_index(k - 1)).right_set_link(r);
             }
-            bool p_is_red = deref(p).is_red();
-            bool r_is_red = deref(r).is_red();
-            if(p_is_red)
+            bool is_red = deref(r).is_red();
+            if(deref(p).is_red())
             {
                 deref(r).set_red();
             }
@@ -804,7 +803,7 @@ void threaded_rb_tree_remove(root_t &root, threaded_rb_tree_stack_t<typename roo
             {
                 deref(r).set_black();
             }
-            if(r_is_red)
+            if(is_red)
             {
                 deref(p).set_red();
             }
@@ -855,9 +854,8 @@ void threaded_rb_tree_remove(root_t &root, threaded_rb_tree_stack_t<typename roo
             }
             deref(s).right_set_link(deref(p).right_get_link());
             deref(s).right_set_child();
-            bool s_is_red = deref(s).is_red();
-            bool p_is_red = deref(p).is_red();
-            if(s_is_red)
+            bool is_red = deref(p).is_red();
+            if(deref(s).is_red())
             {
                 deref(p).set_red();
             }
@@ -865,7 +863,7 @@ void threaded_rb_tree_remove(root_t &root, threaded_rb_tree_stack_t<typename roo
             {
                 deref(p).set_black();
             }
-            if(p_is_red)
+            if(is_red)
             {
                 deref(s).set_red();
             }
@@ -1126,7 +1124,7 @@ protected:
     };
     struct deref_value_t
     {
-        value_type &operator()(index_type const &index) const
+        storage_type &operator()(index_type const &index) const
         {
             return config_t::get_value(*container_ptr, index);
         }
@@ -1138,13 +1136,13 @@ protected:
         {
             return value;
         }
-        key_type const &operator()(value_type const &value) const
+        key_type const &operator()(storage_type const &value) const
         {
             return config_t::get_key(value);
         }
-        template<class ...args_t> key_type const &operator()(key_type const &in, args_t &&...args) const
+        template<class in_t, class ...args_t> key_type operator()(in_t const &in, args_t const &...args) const
         {
-            return (*this)(in);
+            return key_type(in);
         }
     };
     template<class k_t> struct get_key_select_t<k_t, k_t>
@@ -1166,11 +1164,11 @@ protected:
             key_compare &compare = *root_ptr;
             auto &left_value = config_t::get_value(root_ptr->container, left);
             auto &right_value = config_t::get_value(root_ptr->container, right);
-            if(compare(left_value, right_value))
+            if(compare(config_t::get_key(left_value), config_t::get_key(right_value)))
             {
                 return true;
             }
-            else if(compare(right_value, left_value))
+            else if(compare(config_t::get_key(right_value), config_t::get_key(left_value)))
             {
                 return false;
             }
@@ -1227,19 +1225,19 @@ public:
         }
         reference operator *() const
         {
-            return config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<reference>(config_t::get_value(tree->root_.container, where));
         }
         pointer operator->() const
         {
-            return &config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<pointer>(&config_t::get_value(tree->root_.container, where));
         }
         bool operator == (iterator const &other) const
         {
-            return tree == other.tree && where == other.where;
+            return where == other.where && tree == other.tree;
         }
         bool operator != (iterator const &other) const
         {
-            return tree != other.tree || where != other.where;
+            return where != other.where || tree != other.tree;
         }
     private:
         friend class threaded_rb_tree_impl;
@@ -1295,19 +1293,19 @@ public:
         }
         const_reference operator *() const
         {
-            return config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<const_reference>(config_t::get_value(tree->root_.container, where));
         }
         const_pointer operator->() const
         {
-            return &config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<const_pointer>(&config_t::get_value(tree->root_.container, where));
         }
         bool operator == (iterator const &other) const
         {
-            return tree == other.tree && where == other.where;
+            return where == other.where && tree == other.tree;
         }
         bool operator != (iterator const &other) const
         {
-            return tree != other.tree || where != other.where;
+            return where != other.where || tree != other.tree;
         }
     private:
         friend class threaded_rb_tree_impl;
@@ -1362,19 +1360,19 @@ public:
         }
         reference operator *() const
         {
-            return config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<reference>(config_t::get_value(tree->root_.container, where));
         }
         pointer operator->() const
         {
-            return &config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<pointer>(&config_t::get_value(tree->root_.container, where));
         }
         bool operator == (iterator const &other) const
         {
-            return tree == other.tree && where == other.where;
+            return where == other.where && tree == other.tree;
         }
         bool operator != (iterator const &other) const
         {
-            return tree != other.tree || where != other.where;
+            return where != other.where || tree != other.tree;
         }
         iterator base() const
         {
@@ -1438,19 +1436,19 @@ public:
         }
         const_reference operator *() const
         {
-            return config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<const_reference>(config_t::get_value(tree->root_.container, where));
         }
         const_pointer operator->() const
         {
-            return &config_t::get_value(tree->root_.container, where);
+            return reinterpret_cast<const_pointer>(&config_t::get_value(tree->root_.container, where));
         }
         bool operator == (iterator const &other) const
         {
-            return tree == other.tree && where == other.where;
+            return where == other.where && tree == other.tree;
         }
         bool operator != (iterator const &other) const
         {
-            return tree != other.tree || where != other.where;
+            return where != other.where || tree != other.tree;
         }
         const_iterator base() const
         {
@@ -1865,8 +1863,7 @@ protected:
     {
         threaded_rb_tree_stack_t<node_type, stack_max_depth> stack;
         index_type index = config_t::alloc_index(root_.container);
-        storage_type &value = config_t::get_value(root_.container, index);
-        ::new(std::addressof(value)) storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
+        config_t::get_value(root_.container, index) = storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
         threaded_rb_tree_find_path_for_multi(root_, stack, deref_node_t{&root_.container}, index, key_compare_ex{&root_});
         threaded_rb_tree_insert(root_, stack, deref_node_t{&root_.container}, index);
         return {index, true};
@@ -1875,14 +1872,14 @@ protected:
     template<class arg_first_t, class ...args_other_t> pair_posi_t trb_insert_(std::true_type, arg_first_t &&arg_first, args_other_t &&...args_other)
     {
         threaded_rb_tree_stack_t<node_type, stack_max_depth> stack;
-        bool exists = threaded_rb_tree_find_path_for_unique(root_, stack, deref_node_t{&root_.container}, get_key_t()(arg_first, args_other...), deref_value_t{&root_.container}, get_key_t(), get_comparator_());
+        auto key = get_key_t()(arg_first, args_other...);
+        bool exists = threaded_rb_tree_find_path_for_unique(root_, stack, deref_node_t{&root_.container}, key, deref_value_t{&root_.container}, get_key_t(), get_comparator_());
         if(exists)
         {
             return {stack.get_index(stack.height - 1), false};
         }
         index_type index = config_t::alloc_index(root_.container);
-        storage_type &value = config_t::get_value(root_.container, index);
-        ::new(std::addressof(value)) storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
+        config_t::get_value(root_.container, index) = storage_type(std::forward<arg_first_t>(arg_first), std::forward<args_other_t>(args_other)...);
         threaded_rb_tree_insert(root_, stack, deref_node_t{&root_.container}, index);
         return {index, true};
     }
@@ -1902,7 +1899,7 @@ protected:
 };
 
 template<class key_t, class comparator_t, class index_t, class unique_t>
-struct threaded_rb_tree_default_config_t
+struct threaded_rb_tree_default_set_config_t
 {
     typedef key_t key_type;
     typedef key_t const mapped_type;
@@ -1914,7 +1911,7 @@ struct threaded_rb_tree_default_config_t
     struct element_type
     {
         node_type node;
-        key_type value;
+        storage_type value;
     };
     typedef std::vector<element_type> container_type;
     typedef unique_t unique_type;
@@ -1940,11 +1937,57 @@ struct threaded_rb_tree_default_config_t
     }
 };
 
-template<class value_t, class comparator_t = std::less<value_t>, class index_t = uint32_t>
-using trb_set = threaded_rb_tree_impl<threaded_rb_tree_default_config_t<value_t, comparator_t, index_t, std::true_type>>;
 
-template<class value_t, class comparator_t = std::less<value_t>, class index_t = uint32_t>
-using trb_multiset = threaded_rb_tree_impl<threaded_rb_tree_default_config_t<value_t, comparator_t, index_t, std::false_type>>;
+template<class key_t, class value_t, class comparator_t, class index_t, class unique_t>
+struct threaded_rb_tree_default_map_config_t
+{
+    typedef key_t key_type;
+    typedef value_t mapped_type;
+    typedef std::pair<key_t const, value_t> value_type;
+    typedef std::pair<key_t, value_t> storage_type;
+    typedef comparator_t key_compare;
+    
+    typedef threaded_rb_tree_node_t<index_t> node_type;
+    struct element_type
+    {
+        node_type node;
+        storage_type value;
+    };
+    typedef std::vector<element_type> container_type;
+    typedef unique_t unique_type;
+    
+    static node_type &get_node(container_type &container, typename node_type::index_type const &index)
+    {
+        return container[index].node;
+    }
+    static storage_type &get_value(container_type &container, typename node_type::index_type const &index)
+    {
+        return container[index].value;
+    }
+    static typename node_type::index_type alloc_index(container_type &container)
+    {
+        auto index = typename node_type::index_type(container.size());
+        container.emplace_back();
+        return index;
+    }
+    
+    template<class in_type> static key_type const &get_key(in_type &&value)
+    {
+        return value.first;
+    }
+};
+
+template<class key_t, class comparator_t = std::less<key_t>, class index_t = uint32_t>
+using trb_set = threaded_rb_tree_impl<threaded_rb_tree_default_set_config_t<key_t, comparator_t, index_t, std::true_type>>;
+
+template<class key_t, class comparator_t = std::less<key_t>, class index_t = uint32_t>
+using trb_multiset = threaded_rb_tree_impl<threaded_rb_tree_default_set_config_t<key_t, comparator_t, index_t, std::false_type>>;
+
+template<class key_t, class value_t, class comparator_t = std::less<key_t>, class index_t = uint32_t>
+using trb_map = threaded_rb_tree_impl<threaded_rb_tree_default_map_config_t<key_t, value_t, comparator_t, index_t, std::true_type>>;
+
+template<class key_t, class value_t, class comparator_t = std::less<key_t>, class index_t = uint32_t>
+using trb_multimap = threaded_rb_tree_impl<threaded_rb_tree_default_map_config_t<key_t, value_t, comparator_t, index_t, std::false_type>>;
 
 
 
