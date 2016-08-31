@@ -2,7 +2,11 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cassert>
+#include <utility>
+#include <iterator>
+#include <algorithm>
 #include <new>
+#include <vector>
 
 template<class index_t>
 struct threaded_rb_tree_node_t
@@ -1005,6 +1009,7 @@ public:
     typedef typename config_t::key_type key_type;
     typedef typename config_t::mapped_type mapped_type;
     typedef typename config_t::value_type value_type;
+    typedef typename config_t::storage_type storage_type;
     typedef std::size_t size_type;
     typedef std::ptrdiff_t difference_type;
     typedef typename config_t::key_compare key_compare;
@@ -1017,7 +1022,6 @@ protected:
     typedef typename config_t::container_type container_type;
     typedef typename config_t::node_type node_type;
     typedef typename node_type::index_type index_type;
-    typedef typename config_t::storage_type storage_type;
     
     typedef threaded_rb_tree_root_t<node_type, std::true_type, std::true_type> root_node_t;
     
@@ -1041,6 +1045,14 @@ protected:
             return config_t::get_node(*container_ptr, index);
         }
         container_type *container_ptr;
+    };
+    struct const_deref_node_t
+    {
+        node_type const &operator()(index_type index) const
+        {
+            return config_t::get_node(*container_ptr, index);
+        }
+        container_type const *container_ptr;
     };
     struct deref_value_t
     {
@@ -1179,7 +1191,7 @@ public:
         typedef typename threaded_rb_tree_impl::pointer pointer;
         typedef typename threaded_rb_tree_impl::const_pointer const_pointer;
     public:
-        explicit const_iterator(threaded_rb_tree_impl *in_tree, index_type in_where) : tree(in_tree), where(in_where)
+        explicit const_iterator(threaded_rb_tree_impl const *in_tree, index_type in_where) : tree(in_tree), where(in_where)
         {
         }
         const_iterator(iterator const &other) : tree(other.tree), where(other.where)
@@ -1188,7 +1200,7 @@ public:
         const_iterator(const_iterator const &) = default;
         const_iterator &operator++()
         {
-            where = threaded_rb_tree_move_next(where, deref_node_t{&tree->root_.container});
+            where = threaded_rb_tree_move_next(where, const_deref_node_t{&tree->root_.container});
             return *this;
         }
         const_iterator &operator--()
@@ -1223,11 +1235,11 @@ public:
         {
             return reinterpret_cast<const_pointer>(&config_t::get_value(tree->root_.container, where));
         }
-        bool operator == (iterator const &other) const
+        bool operator == (const_iterator const &other) const
         {
             return where == other.where && tree == other.tree;
         }
-        bool operator != (iterator const &other) const
+        bool operator != (const_iterator const &other) const
         {
             return where != other.where || tree != other.tree;
         }
@@ -1290,11 +1302,11 @@ public:
         {
             return reinterpret_cast<pointer>(&config_t::get_value(tree->root_.container, where));
         }
-        bool operator == (iterator const &other) const
+        bool operator == (reverse_iterator const &other) const
         {
             return where == other.where && tree == other.tree;
         }
-        bool operator != (iterator const &other) const
+        bool operator != (reverse_iterator const &other) const
         {
             return where != other.where || tree != other.tree;
         }
@@ -1318,7 +1330,7 @@ public:
         typedef typename threaded_rb_tree_impl::pointer pointer;
         typedef typename threaded_rb_tree_impl::const_pointer const_pointer;
     public:
-        explicit const_reverse_iterator(threaded_rb_tree_impl *in_tree, index_type in_where) : tree(in_tree), where(in_where)
+        explicit const_reverse_iterator(threaded_rb_tree_impl const *in_tree, index_type in_where) : tree(in_tree), where(in_where)
         {
         }
         explicit const_reverse_iterator(const_iterator const &other) : tree(other.tree), where(other.where)
@@ -1366,11 +1378,11 @@ public:
         {
             return reinterpret_cast<const_pointer>(&config_t::get_value(tree->root_.container, where));
         }
-        bool operator == (iterator const &other) const
+        bool operator == (const_reverse_iterator const &other) const
         {
             return where == other.where && tree == other.tree;
         }
-        bool operator != (iterator const &other) const
+        bool operator != (const_reverse_iterator const &other) const
         {
             return where != other.where || tree != other.tree;
         }
@@ -1453,7 +1465,7 @@ public:
     threaded_rb_tree_impl &operator = (std::initializer_list<value_type> il)
     {
         clear();
-        insert(il, il.end());
+        insert(il.begin(), il.end());
         return *this;
     }
 
@@ -1519,12 +1531,12 @@ public:
     
     iterator find(key_type const &key)
     {
-        index_type where = bst_lower_bound_(key);
+        index_type where = trb_lower_bound_(key);
         return (where == node_type::nil_sentinel || get_comparator_()(key, get_key_(where))) ? iterator(this, node_type::nil_sentinel) : iterator(this, where);
     }
     const_iterator find(key_type const &key) const
     {
-        index_type where = bst_lower_bound_(key);
+        index_type where = trb_lower_bound_(key);
         return (where == node_type::nil_sentinel || get_comparator_()(key, get_key_(where))) ? const_iterator(this, node_type::nil_sentinel) : const_iterator(this, where);
     }
     
@@ -1560,7 +1572,7 @@ public:
             {
                 erase(erase_begin++);
             }
-            return iterator(erase_begin.node);
+            return iterator(this, erase_begin.where);
         }
     }
     
@@ -1572,31 +1584,31 @@ public:
     
     iterator lower_bound(key_type const &key)
     {
-        return iterator(bst_lower_bound_(key));
+        return iterator(this, trb_lower_bound_(key));
     }
     const_iterator lower_bound(key_type const &key) const
     {
-        return const_iterator(bst_lower_bound_(key));
+        return const_iterator(this, trb_lower_bound_(key));
     }
     iterator upper_bound(key_type const &key)
     {
-        return iterator(bst_upper_bound_(key));
+        return iterator(this, trb_upper_bound_(key));
     }
     const_iterator upper_bound(key_type const &key) const
     {
-        return const_iterator(bst_upper_bound_(key));
+        return const_iterator(this, trb_upper_bound_(key));
     }
     
     pair_ii_t equal_range(key_type const &key)
     {
         index_type lower, upper;
-        bst_equal_range_(key, lower, upper);
-        return pair_ii_t(iterator(lower), iterator(upper));
+        trb_equal_range_(key, lower, upper);
+        return pair_ii_t(iterator(this, lower), iterator(this, upper));
     }
     pair_cici_t equal_range(key_type const &key) const
     {
         index_type lower, upper;
-        bst_equal_range_(key, lower, upper);
+        trb_equal_range_(key, lower, upper);
         return pair_cici_t(const_iterator(this, lower), const_iterator(this, upper));
     }
     
@@ -1610,7 +1622,7 @@ public:
     }
     const_iterator begin() const
     {
-        return const_iterator(this, root_.get_most_left(deref_node_t{&root_.container}));
+        return const_iterator(this, root_.get_most_left(const_deref_node_t{&root_.container}));
     }
     const_iterator end() const
     {
@@ -1618,7 +1630,7 @@ public:
     }
     const_iterator cbegin() const
     {
-        return const_iterator(this, root_.get_most_left(deref_node_t{&root_.container}));
+        return const_iterator(this, root_.get_most_left(const_deref_node_t{&root_.container}));
     }
     const_iterator cend() const
     {
@@ -1634,7 +1646,7 @@ public:
     }
     const_reverse_iterator rbegin() const
     {
-        return const_reverse_iterator(this, root_.get_most_right(deref_node_t{&root_.container}));
+        return const_reverse_iterator(this, root_.get_most_right(const_deref_node_t{&root_.container}));
     }
     const_reverse_iterator rend() const
     {
@@ -1642,7 +1654,7 @@ public:
     }
     const_reverse_iterator crbegin() const
     {
-        return const_reverse_iterator(this, root_.get_most_right(deref_node_t{&root_.container}));
+        return const_reverse_iterator(this, root_.get_most_right(const_deref_node_t{&root_.container}));
     }
     const_reverse_iterator crend() const
     {
@@ -1651,7 +1663,7 @@ public:
     
     bool empty() const
     {
-        return root_.root == node_type::nil_sentinel;
+        return root_.root.root == node_type::nil_sentinel;
     }
     void clear()
     {
@@ -1679,9 +1691,9 @@ protected:
         return root_;
     }
     
-    key_type get_key_(index_type index) const
+    key_type const &get_key_(index_type index) const
     {
-        return get_key_t()(config_t::get_value(root_.container, index));
+        return config_t::get_key(config_t::get_value(root_.container, index));
     }
     
     index_type alloc_index_()
@@ -1704,44 +1716,47 @@ protected:
         root_.free = index;
     }
     
-    index_type bst_lower_bound_(key_type const &key) const
+    index_type trb_lower_bound_(key_type const &key) const
     {
+        auto deref = const_deref_node_t{&root_.container};
         index_type node = root_.root.root, where = node_type::nil_sentinel;
         while(node != node_type::nil_sentinel)
         {
             if(get_comparator_()(get_key_(node), key))
             {
-                node = get_deref_(node).right_get_link();
+                node = deref(node).right_get_link();
             }
             else
             {
                 where = node;
-                node = get_deref_(node).left_get_link();
+                node = deref(node).left_get_link();
             }
         }
         return where;
     }
     
-    index_type bst_upper_bound_(key_type const &key) const
+    index_type trb_upper_bound_(key_type const &key) const
     {
+        auto deref = const_deref_node_t{&root_.container};
         index_type node = root_.root.root, where = node_type::nil_sentinel;
         while(node != node_type::nil_sentinel)
         {
             if(get_comparator_()(key, get_key_(node)))
             {
                 where = node;
-                node = get_deref_(node).left_get_link();
+                node = deref(node).left_get_link();
             }
             else
             {
-                node = get_deref_(node).right_get_link();
+                node = deref(node).right_get_link();
             }
         }
         return where;
     }
     
-    void bst_equal_range_(key_type const &key, index_type &lower, index_type &upper) const
+    void trb_equal_range_(key_type const &key, index_type &lower, index_type &upper) const
     {
+        auto deref = const_deref_node_t{&root_.container};
         index_type node = root_.root.root;
         lower = node_type::nil_sentinel;
         upper = node_type::nil_sentinel;
@@ -1749,7 +1764,7 @@ protected:
         {
             if(get_comparator_()(get_key_(node), key))
             {
-                node = get_deref_(node).right_get_link();
+                node = deref(node).right_get_link();
             }
             else
             {
@@ -1758,20 +1773,20 @@ protected:
                     upper = node;
                 }
                 lower = node;
-                node = get_deref_(node).left_get_link();
+                node = deref(node).left_get_link();
             }
         }
-        node = upper == node_type::nil_sentinel ? root_.root.root : get_deref_(upper).left_get_link();
+        node = upper == node_type::nil_sentinel ? root_.root.root : deref(upper).left_get_link();
         while(node != node_type::nil_sentinel)
         {
             if(get_comparator_()(key, get_key_(node)))
             {
                 upper = node;
-                node = get_deref_(node).left_get_link();
+                node = deref(node).left_get_link();
             }
             else
             {
-                node = get_deref_(node).right_get_link();
+                node = deref(node).right_get_link();
             }
         }
     }
@@ -1819,9 +1834,10 @@ protected:
         {
             return false;
         }
+        auto index = index_type(stack.height - 1);
         auto &value = config_t::get_value(root_.container, index);
         value.~storage_type();
-        dealloc_index_(stack.height - 1);
+        dealloc_index_(index);
         threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
         return true;
     }
@@ -1833,7 +1849,7 @@ protected:
         assert(exists);
         auto &value = config_t::get_value(root_.container, index);
         value.~storage_type();
-        dealloc_index_(stack.height - 1);
+        dealloc_index_(index);
         threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
     }
     
@@ -1878,9 +1894,17 @@ struct threaded_rb_tree_default_set_config_t
     {
         return container[index].node;
     }
+    static node_type const &get_node(container_type const &container, typename node_type::index_type index)
+    {
+        return container[index].node;
+    }
     static storage_type &get_value(container_type &container, typename node_type::index_type index)
     {
         return reinterpret_cast<storage_type &>(container[index].value);
+    }
+    static storage_type const &get_value(container_type const &container, typename node_type::index_type index)
+    {
+        return reinterpret_cast<storage_type const &>(container[index].value);
     }
     static typename node_type::index_type alloc_index(container_type &container)
     {
@@ -1918,9 +1942,17 @@ struct threaded_rb_tree_default_map_config_t
     {
         return container[index].node;
     }
+    static node_type const &get_node(container_type const &container, typename node_type::index_type index)
+    {
+        return container[index].node;
+    }
     static storage_type &get_value(container_type &container, typename node_type::index_type index)
     {
         return reinterpret_cast<storage_type &>(container[index].value);
+    }
+    static storage_type const &get_value(container_type const &container, typename node_type::index_type index)
+    {
+        return reinterpret_cast<storage_type const &>(container[index].value);
     }
     static typename node_type::index_type alloc_index(container_type &container)
     {
