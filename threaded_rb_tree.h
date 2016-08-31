@@ -1551,11 +1551,11 @@ public:
         size_type erase_count = 0;
         while(trb_erase_(key))
         {
+            ++erase_count;
             if(config_t::unique_type::value)
             {
                 break;
             }
-            ++erase_count;
         }
         return erase_count;
     }
@@ -1724,11 +1724,19 @@ protected:
         {
             if(get_comparator_()(get_key_(node), key))
             {
+                if(deref(node).right_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).right_get_link();
             }
             else
             {
                 where = node;
+                if(deref(node).left_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).left_get_link();
             }
         }
@@ -1744,10 +1752,18 @@ protected:
             if(get_comparator_()(key, get_key_(node)))
             {
                 where = node;
+                if(deref(node).left_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).left_get_link();
             }
             else
             {
+                if(deref(node).right_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).right_get_link();
             }
         }
@@ -1764,6 +1780,10 @@ protected:
         {
             if(get_comparator_()(get_key_(node), key))
             {
+                if(deref(node).right_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).right_get_link();
             }
             else
@@ -1773,19 +1793,31 @@ protected:
                     upper = node;
                 }
                 lower = node;
+                if(deref(node).left_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).left_get_link();
             }
         }
-        node = upper == node_type::nil_sentinel ? root_.root.root : deref(upper).left_get_link();
+        node = upper == node_type::nil_sentinel ? root_.root.root : deref(upper).left_is_child() ? deref(upper).left_get_link() : node_type::nil_sentinel;
         while(node != node_type::nil_sentinel)
         {
             if(get_comparator_()(key, get_key_(node)))
             {
                 upper = node;
+                if(deref(node).left_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).left_get_link();
             }
             else
             {
+                if(deref(node).right_is_thread())
+                {
+                    break;
+                }
                 node = deref(node).right_get_link();
             }
         }
@@ -1834,11 +1866,11 @@ protected:
         {
             return false;
         }
-        auto index = index_type(stack.height - 1);
+        auto index = stack.get_index(stack.height - 1);
+        threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
         auto &value = config_t::get_value(root_.container, index);
         value.~storage_type();
         dealloc_index_(index);
-        threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
         return true;
     }
     
@@ -1847,10 +1879,10 @@ protected:
         threaded_rb_tree_stack_t<node_type, stack_max_depth> stack;
         bool exists = threaded_rb_tree_find_path_for_remove(root_, stack, deref_node_t{&root_.container}, index, key_compare_ex{&root_});
         assert(exists);
+        threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
         auto &value = config_t::get_value(root_.container, index);
         value.~storage_type();
         dealloc_index_(index);
-        threaded_rb_tree_remove(root_, stack, deref_node_t{&root_.container});
     }
     
     void trb_clear_()
