@@ -1,5 +1,6 @@
 
 #include "threaded_rb_tree.h"
+#include "threaded_rbtree_hash.h"
 #include <unordered_set>
 #include <set>
 
@@ -336,6 +337,11 @@ int main()
     typedef trb_set<key<64 >>            trb_set_64     ;
     typedef trb_set<key<128>>            trb_set_128    ;
     typedef trb_set<key<200>>            trb_set_200    ;
+    typedef trb_hash_set<key<4  >>       trb_hash_4     ;
+    typedef trb_hash_set<key<32 >>       trb_hash_32    ;
+    typedef trb_hash_set<key<64 >>       trb_hash_64    ;
+    typedef trb_hash_set<key<128>>       trb_hash_128   ;
+    typedef trb_hash_set<key<200>>       trb_hash_200   ;
     
     
     typedef std::multiset<key<4  >>           std_mset_4      ;
@@ -353,6 +359,11 @@ int main()
     typedef trb_multiset<key<64 >>            trb_mset_64     ;
     typedef trb_multiset<key<128>>            trb_mset_128    ;
     typedef trb_multiset<key<200>>            trb_mset_200    ;
+    typedef trb_hash_multiset<key<4  >>       trb_mhash_4     ;
+    typedef trb_hash_multiset<key<32 >>       trb_mhash_32    ;
+    typedef trb_hash_multiset<key<64 >>       trb_mhash_64    ;
+    typedef trb_hash_multiset<key<128>>       trb_mhash_128   ;
+    typedef trb_hash_multiset<key<200>>       trb_mhash_200   ;
     
     
     std::mt19937 mt(0);
