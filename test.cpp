@@ -368,7 +368,7 @@ int main()
     
     std::mt19937 mt(0);
     auto mtr = std::uniform_int_distribution<int>(-200000000, 200000000);
-    static constexpr size_t count = 409600;
+    static constexpr size_t count = 4096000;
     static constexpr size_t times = 5;
     static constexpr size_t split = 17;
     std::vector<int> v_arr[times];

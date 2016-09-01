@@ -1087,14 +1087,14 @@ protected:
     {
         for(size_type i = 0; i < root_.size; ++i)
         {
-            if(root_.node[i].hash)
+            if(root_.node[i].is_used())
             {
                 destroy_one_(root_.value[i].value());
             }
         }
         if(root_.bucket_count != 0)
         {
-            std::memset(root_.bucket, 0xFFFFFFFF, sizeof(offset_type) * root_.bucket_count);
+            std::fill_n(root_.bucket, root_.bucket_count, offset_empty);
         }
         if(root_.capacity != 0)
         {
@@ -1191,7 +1191,7 @@ protected:
     {
         size = std::min(get_prime_(size), max_size());
         offset_type *new_bucket = get_bucket_allocator_().allocate(size);
-        std::memset(new_bucket, 0xFFFFFFFF, sizeof(offset_type) * size);
+        std::fill_n(new_bucket, size, offset_type(offset_empty));
         
         if(root_.bucket_count != 0)
         {
@@ -1201,8 +1201,8 @@ protected:
                 {
                     size_type bucket = get_hasher()(*root_.value[i].value()) % size;
                     stack_t stack;
-                    trb_find_path_for_multi_(stack, root_.bucket[bucket], i);
-                    trb_insert_(stack, root_.bucket[bucket], i);
+                    trb_find_path_for_multi_(stack, new_bucket[bucket], i);
+                    trb_insert_(stack, new_bucket[bucket], i);
                 }
             }
             get_bucket_allocator_().deallocate(root_.bucket, root_.bucket_count);
