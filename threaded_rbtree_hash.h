@@ -5,6 +5,7 @@
 #include <iterator>
 #include <algorithm>
 #include <cmath>
+#include <cassert>
 #include <new>
 
 namespace threaded_rbtree_hash_detail
@@ -146,7 +147,7 @@ protected:
         {
             return (children[1] & flag_bit_mask) == 0;
         }
-        bool set_used() const
+        void set_used()
         {
             children[1] &= ~flag_bit_mask;
         }
@@ -154,7 +155,7 @@ protected:
         {
             return (children[1] & flag_bit_mask) != 0;
         }
-        bool set_empty() const
+        void set_empty()
         {
             children[1] |= flag_bit_mask;
         }
@@ -187,11 +188,11 @@ protected:
         
         bool is_left(size_t i) const
         {
-            return (mask_type(stack[i]) & dir_bit_mask) == 0;
+            return (stack[i] & dir_bit_mask) == 0;
         }
         bool is_right(size_t i) const
         {
-            return (mask_type(stack[i]) & dir_bit_mask) != 0;
+            return (stack[i] & dir_bit_mask) != 0;
         }
         size_type get_index(size_t i) const
         {
@@ -216,15 +217,15 @@ protected:
     };
     struct value_t
     {
-        typename std::aligned_storage<sizeof(value_type), alignof(value_type)>::type value_pod;
+        typename std::aligned_storage<sizeof(storage_type), alignof(storage_type)>::type value_pod;
         
-        value_type *value()
+        storage_type *value()
         {
-            return reinterpret_cast<value_type *>(&value_pod);
+            return reinterpret_cast<storage_type *>(&value_pod);
         }
-        value_type const *value() const
+        storage_type const *value() const
         {
-            return reinterpret_cast<value_type const *>(&value_pod);
+            return reinterpret_cast<storage_type const *>(&value_pod);
         }
     };
     
@@ -265,38 +266,42 @@ protected:
     };
     template<class k_t, class v_t> struct get_key_select_t
     {
-        key_type const &operator()(key_type const &value)
+        key_type const &operator()(key_type const &value) const
         {
             return value;
         }
-        key_type const &operator()(value_type const &value)
+        key_type const &operator()(storage_type const &value) const
         {
             return config_t::get_key(value);
         }
-        template<class ...args_t> key_type const &operator()(key_type const &in, args_t &&...args)
+        template<class first_t, class second_t> key_type operator()(std::pair<first_t, second_t> const &pair)
         {
-            return (*this)(in);
+            return key_type(pair.first);
+        }
+        template<class in_t, class ...args_t> key_type operator()(in_t const &in, args_t const &...args) const
+        {
+            return key_type(in);
         }
     };
     template<class k_t> struct get_key_select_t<k_t, k_t>
     {
-        key_type const &operator()(key_type const &value)
+        key_type const &operator()(key_type const &value) const
         {
             return config_t::get_key(value);
         }
-        template<class in_t, class ...args_t> key_type operator()(in_t const &in, args_t const &...args)
+        template<class in_t, class ...args_t> key_type operator()(in_t const &in, args_t const &...args) const
         {
             return key_type(in, args...);
         }
     };
-    typedef get_key_select_t<key_type, value_type> get_key_t;
+    typedef get_key_select_t<key_type, storage_type> get_key_t;
     struct offset_compare
     {
         bool operator()(size_type left, size_type right) const
         {
-            key_compare &compare = *root_ptr;
-            auto &left_value = get_key_t()(root_ptr->value[left]);
-            auto &right_value = get_key_t()(root_ptr->value[right]);
+            key_compare const &compare = *root_ptr;
+            auto const &left_value = get_key_t()(*root_ptr->value[left].value());
+            auto const &right_value = get_key_t()(*root_ptr->value[right].value());
             if(compare(config_t::get_key(left_value), config_t::get_key(right_value)))
             {
                 return true;
@@ -715,7 +720,7 @@ public:
         return const_iterator(find_value_(key), this);
     }
     
-    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, value_type>::value, void>::type> mapped_type &at(in_key_t const &key)
+    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, storage_type>::value, void>::type> mapped_type &at(in_key_t const &key)
     {
         offset_type offset = root_.size;
         if(root_.size != 0)
@@ -728,7 +733,7 @@ public:
         }
         return root_.value[offset].value()->second;
     }
-    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, value_type>::value, void>::type> mapped_type const &at(in_key_t const &key) const
+    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, storage_type>::value, void>::type> mapped_type const &at(in_key_t const &key) const
     {
         offset_type offset = root_.size;
         if(root_.size != 0)
@@ -742,7 +747,7 @@ public:
         return root_.value[offset].value()->second;
     }
     
-    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, value_type>::value, void>::type> mapped_type &operator[](in_key_t &&key)
+    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, storage_type>::value, void>::type> mapped_type &operator[](in_key_t &&key)
     {
         offset_type offset = root_.size;
         if(root_.size != 0)
@@ -813,29 +818,19 @@ public:
         return find(key) == end() ? 0 : 1;
     }
     
-    pair_ii_t equal_range(key_type const &key)
+    pair_lili_t equal_range(key_type const &key)
     {
-        auto where = find(key);
-        if(where == end())
-        {
-            return std::make_pair(end(), end());
-        }
-        else
-        {
-            return std::make_pair(where, iterator(advance_next_(where.offset), this));
-        }
+        size_type bucket = get_hasher()(key) % root_.bucket_count;
+        size_type lower, upper;
+        trb_equal_range_(root_.bucket[bucket], key, lower, upper);
+        return std::make_pair(local_iterator(lower, this), local_iterator(upper, this));
     }
-    pair_cici_t equal_range(key_type const &key) const
+    pair_clicli_t equal_range(key_type const &key) const
     {
-        auto where = find(key);
-        if(where == cend())
-        {
-            return std::make_pair(cend(), cend());
-        }
-        else
-        {
-            return std::make_pair(where, const_iterator(advance_next_(where.offset), this));
-        }
+        size_type bucket = get_hasher()(key) % root_.bucket_count;
+        size_type lower, upper;
+        trb_equal_range_(root_.bucket[bucket], key, lower, upper);
+        return std::make_pair(const_local_iterator(lower, this), const_local_iterator(upper, this));
     }
     
     iterator begin()
@@ -877,7 +872,7 @@ public:
     }
     size_type max_size() const
     {
-        return node_t::nil_sentinel - 1;
+        return offset_empty - 1;
     }
     
     local_iterator begin(size_type n)
@@ -990,11 +985,11 @@ protected:
         return root_;
     }
     
-    offset_compare &get_offset_comp()
+    offset_compare get_offset_comp()
     {
         return offset_compare{&root_};
     }
-    offset_compare const &get_offset_comp() const
+    offset_compare get_offset_comp() const
     {
         return offset_compare{&root_};
     }
@@ -1028,7 +1023,7 @@ protected:
     {
         for(++i; i < root_.size; ++i)
         {
-            if(root_.node[i].hash)
+            if(root_.node[i].is_used())
             {
                 break;
             }
@@ -1036,32 +1031,21 @@ protected:
         return i;
     }
     
-    size_type local_advance_next_(size_type i) const
-    {
-        return root_.node[i].next;
-    }
-    
-    size_type local_find_equal_(size_type i) const
-    {
-//        hash_t hash = root_.node[i].hash;
-//        size_type next = root_.node[i].next;
-//        while(next != offset_empty && root_.node[next].hash == hash && get_key_equal()(get_key_t()(*root_.value[i].value()), get_key_t()(*root_.value[next].value())))
-//        {
-//            next = root_.node[next].next;
-//        }
-//        return next;
-    }
-    
     size_type find_begin_() const
     {
         for(size_type i = 0; i < root_.size; ++i)
         {
-            if(root_.node[i].hash)
+            if(root_.node[i].is_used())
             {
                 return i;
             }
         }
         return root_.size;
+    }
+    
+    size_type local_advance_next_(size_type i) const
+    {
+        return trb_move_next_(i);
     }
     
     template<class iterator_t, class ...args_t> static void construct_one_(iterator_t where, args_t &&...args)
@@ -1083,7 +1067,7 @@ protected:
     {
         for(size_type i = 0; i < root_.size; ++i)
         {
-            if(root_.node[i].hash)
+            if(root_.node[i].is_used())
             {
                 destroy_one_(root_.value[i].value());
             }
@@ -1139,18 +1123,9 @@ protected:
             realloc_(size);
             for(size_type other_i = 0; other_i < other->size; ++other_i)
             {
-                if(other->index[other_i].hash)
+                if(other->node[other_i].is_used())
                 {
-                    auto i = root_.size;
-                    size_type bucket = other->index[other_i].hash % root_.bucket_count;
-                    if(root_.bucket[bucket] != offset_empty)
-                    {
-                        root_.node[root_.bucket[bucket]].prev = offset_type(i);
-                    }
-                    root_.node[i].prev = offset_empty;
-                    root_.node[i].next = root_.bucket[bucket];
-                    root_.node[i].hash = other->index[other_i].hash;
-                    root_.bucket[bucket] = offset_type(i);
+                    size_type i = root_.size;
                     if(move)
                     {
                         construct_one_(root_.value[i].value(), std::move(*other->value[other_i].value()));
@@ -1159,7 +1134,10 @@ protected:
                     {
                         construct_one_(root_.value[i].value(), *other->value[other_i].value());
                     }
-                    ++root_.size;
+                    size_type bucket = get_hasher()(*other->value[i].value()) % root_.bucket_count;
+                    stack_t stack;
+                    trb_find_path_for_multi_(stack, root_.bucket[bucket], i);
+                    trb_insert_(stack, root_.bucket[bucket], i);
                 }
             }
         }
@@ -1209,34 +1187,7 @@ protected:
         return size;
     }
     
-    void rehash_(std::true_type, size_type size)
-    {
-        size = std::min(get_prime_(size), max_size());
-        if(root_.bucket_count != 0)
-        {
-            get_bucket_allocator_().deallocate(root_.bucket, root_.bucket_count);
-        }
-        root_.bucket = get_bucket_allocator_().allocate(size);
-        std::memset(root_.bucket, 0xFFFFFFFF, sizeof(offset_type) * size);
-        
-        for(size_type i = 0; i < root_.size; ++i)
-        {
-            if(root_.node[i].hash)
-            {
-                size_type bucket = root_.node[i].hash % size;
-                if(root_.bucket[bucket] != offset_empty)
-                {
-                    root_.node[root_.bucket[bucket]].prev = offset_type(i);
-                }
-                root_.node[i].prev = offset_empty;
-                root_.node[i].next = root_.bucket[bucket];
-                root_.bucket[bucket] = offset_type(i);
-            }
-        }
-        root_.bucket_count = size;
-    }
-    
-    void rehash_(std::false_type, size_type size)
+    void rehash_(size_type size)
     {
         size = std::min(get_prime_(size), max_size());
         offset_type *new_bucket = get_bucket_allocator_().allocate(size);
@@ -1244,25 +1195,14 @@ protected:
         
         if(root_.bucket_count != 0)
         {
-            for(size_type i = 0; i < root_.bucket_count; ++i)
+            for(size_type i = 0; i < root_.size; ++i)
             {
-                if(root_.bucket[i] != offset_empty)
+                if(root_.node[i].is_used())
                 {
-                    size_type j = root_.bucket[i], nj;
-                    do
-                    {
-                        nj = root_.node[j].next;
-                        size_type bucket = root_.node[j].hash % size;
-                        if(new_bucket[bucket] != offset_empty)
-                        {
-                            root_.node[new_bucket[bucket]].prev = offset_type(j);
-                        }
-                        root_.node[j].prev = offset_empty;
-                        root_.node[j].next = new_bucket[bucket];
-                        new_bucket[bucket] = offset_type(j);
-                        j = nj;
-                    }
-                    while(j != offset_empty);
+                    size_type bucket = get_hasher()(*root_.value[i].value()) % size;
+                    stack_t stack;
+                    trb_find_path_for_multi_(stack, root_.bucket[bucket], i);
+                    trb_insert_(stack, root_.bucket[bucket], i);
                 }
             }
             get_bucket_allocator_().deallocate(root_.bucket, root_.bucket_count);
@@ -1311,7 +1251,7 @@ protected:
             {
                 throw std::length_error("threaded_rbtree_hash too long");
             }
-            rehash_(typename config_t::unique_type(), size_type(std::ceil(root_.bucket_count * config_t::grow_proportion(root_.bucket_count))));
+            rehash_(size_type(std::ceil(root_.bucket_count * config_t::grow_proportion(root_.bucket_count))));
         }
         if(new_size > root_.capacity)
         {
@@ -1329,12 +1269,12 @@ protected:
         return insert_value_uncheck_(typename config_t::unique_type(), std::forward<args_t>(args)...);
     }
     
-    template<class in_t, class ...args_t> typename std::enable_if<std::is_same<key_type, value_type>::value && !std::is_same<typename std::remove_reference<in_t>::type, key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
+    template<class in_t, class ...args_t> typename std::enable_if<std::is_same<key_type, storage_type>::value && !std::is_same<typename std::remove_reference<in_t>::type, key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
     {
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(trb_find_path_for_unique(stack, root_.node[bucket], key))
+        if(trb_find_path_for_unique_(stack, root_.bucket[bucket], key))
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1342,22 +1282,22 @@ protected:
         construct_one_(root_.value[offset].value(), std::move(key));
         if(offset == root_.free_list)
         {
-            root_.free_list = root_.node[offset].next;
+            root_.free_list = root_.node[offset].left_get_link();
             --root_.free_count;
         }
         else
         {
             ++root_.size;
         }
-        trb_insert_impl_(stack, root_.node[bucket], offset);
+        trb_insert_(stack, root_.bucket[bucket], offset);
         return {offset, true};
     }
-    template<class in_t, class ...args_t> typename std::enable_if<!std::is_same<key_type, value_type>::value || std::is_same<typename std::remove_reference<in_t>::type, key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
+    template<class in_t, class ...args_t> typename std::enable_if<!std::is_same<key_type, storage_type>::value || std::is_same<typename std::remove_reference<in_t>::type, key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
     {
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(trb_find_path_for_unique(stack, root_.node[bucket], key))
+        if(trb_find_path_for_unique_(stack, root_.bucket[bucket], key))
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1365,14 +1305,14 @@ protected:
         construct_one_(root_.value[offset].value(), std::forward<in_t>(in), std::forward<args_t>(args)...);
         if(offset == root_.free_list)
         {
-            root_.free_list = root_.node[offset].next;
+            root_.free_list = root_.node[offset].left_get_link();
             --root_.free_count;
         }
         else
         {
             ++root_.size;
         }
-        trb_insert_impl_(stack, root_.node[bucket], offset);
+        trb_insert_(stack, root_.bucket[bucket], offset);
         return {offset, true};
     }
     
@@ -1382,7 +1322,7 @@ protected:
         construct_one_(root_.value[offset].value(), std::forward<in_t>(in), std::forward<args_t>(args)...);
         if(offset == root_.free_list)
         {
-            root_.free_list = root_.node[offset].next;
+            root_.free_list = root_.node[offset].left_get_link();
             --root_.free_count;
         }
         else
@@ -1391,118 +1331,74 @@ protected:
         }
         size_type bucket = get_hasher()(get_key_t()(*root_.value[offset].value())) % root_.bucket_count;
         stack_t stack;
-        trb_find_path_for_multi_(stack, root_.node[bucket], offset);
-        trb_insert_impl_(stack, root_.node[bucket], offset);
+        trb_find_path_for_multi_(stack, root_.bucket[bucket], offset);
+        trb_insert_(stack, root_.bucket[bucket], offset);
         return {offset, true};
     }
     
-    template<class in_key_t> size_type find_value_(in_key_t const &key) const
+    size_type find_value_(key_type const &key) const
     {
-//        hash_t hash = get_hasher()(key);
-//        size_type bucket = hash % root_.bucket_count;
-//        
-//        for(size_type i = root_.bucket[bucket]; i != offset_empty; i = root_.node[i].next)
-//        {
-//            if(root_.node[i].hash == hash && get_key_equal()(get_key_t()(*root_.value[i].value()), key))
-//            {
-//                return i;
-//            }
-//        }
-//        return root_.size;
+        size_type bucket = get_hasher()(key) % root_.bucket_count;
+        size_type offset = trb_lower_bound_(root_.bucket[bucket], key);
+        return (offset == offset_empty || get_key_comp()(key, get_key_t()(*root_.value[offset].value()))) ? offset_empty : offset;
     }
     
     size_type remove_value_(std::true_type, key_type const &key)
     {
-//        size_type offset = find_value_(key);
-//        if(offset != root_.size)
-//        {
-//            remove_offset_(offset);
-//            return 1;
-//        }
-//        else
-//        {
-//            return 0;
-//        }
+        size_type bucket = get_hasher()(key) % root_.bucket_count;
+        stack_t stack;
+        if(trb_find_path_for_unique_(stack, root_.bucket[bucket], key))
+        {
+            size_type offset = stack.get_index(stack.height - 1);
+            trb_remove_(stack, root_.bucket[bucket]);
+            destroy_one_(root_.value[offset].value());
+            root_.node[offset].set_empty();
+            root_.node[offset].left_set_link(root_.free_list);
+            root_.free_list = offset_type(offset);
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
     }
     
     size_type remove_value_(std::false_type, key_type const &key)
     {
-//        size_type offset = find_value_(key);
-//        if(offset != root_.size)
-//        {
-//            hash_t hash = root_.node[offset].hash;
-//            size_type count = 1;
-//            while(true)
-//            {
-//                size_type next = root_.node[offset].next;
-//                remove_offset_(offset);
-//                if(next == offset_empty || root_.node[next].hash != hash || !get_key_equal()(get_key_t()(*root_.value[next].value()), get_key_t()(key)))
-//                {
-//                    return count;
-//                }
-//                offset = next;
-//                ++count;
-//            }
-//        }
-//        else
-//        {
-//            return 0;
-//        }
+        size_type count = 0;
+        while(remove_value_(std::true_type(), key) == 1)
+        {
+            ++count;
+        }
+        return count;
     }
     
     void remove_offset_(size_type offset)
     {
-//        if(root_.node[offset].prev != offset_empty)
-//        {
-//            root_.node[root_.node[offset].prev].next = root_.node[offset].next;
-//        }
-//        else
-//        {
-//            root_.bucket[root_.node[offset].hash % root_.bucket_count] = root_.node[offset].next;
-//        }
-//        if(root_.node[offset].next != offset_empty)
-//        {
-//            root_.node[root_.node[offset].next].prev = root_.node[offset].prev;
-//        }
-//        root_.node[offset].next = root_.free_list;
-//        root_.node[offset].hash.clear();
-//        root_.free_list = offset_type(offset);
-//        ++root_.free_count;
-//        
-//        destroy_one_(root_.value[offset].value());
+        size_type bucket = get_hasher()(get_key_t()(root_.value[offset])) % root_.bucket_count;
+        stack_t stack;
+        trb_find_path_for_remove_(stack, root_.bucket[bucket], offset);
+        trb_remove_impl_(stack, root_.bucket[bucket], offset);
+        destroy_one_(root_.value[offset].value());
+        root_.node[offset].set_empty();
+        root_.node[offset].left_set_link(root_.free_list);
+        root_.free_list = offset_type(offset);
     }
     
-    offset_type trb_move_next(size_type offset)
+    offset_type trb_move_next_(size_type node)
     {
-        if(root_.node[offset].right_is_thread())
+        if(root_.node[node].right_is_thread())
         {
-            return root_.node[offset].right_get_link();
+            return root_.node[node].right_get_link();
         }
         else
         {
-            offset = root_.node[offset].right_get_link();
-            while(root_.node[offset].left_is_child())
+            node = root_.node[node].right_get_link();
+            while(root_.node[node].left_is_child())
             {
-                offset = root_.node[offset].left_get_link();
+                node = root_.node[node].left_get_link();
             }
-            return offset;
-        }
-    }
-
-    size_type trb_move_prev(size_type offset)
-    {
-        if(root_.node[offset].left_is_thread())
-        {
-            return root_.node[offset].left_get_link();
-        }
-        else
-        {
-            offset = root_.node[offset].left_get_link();
-            while(root_.node[offset].right_is_child())
-            {
-                offset = root_.node[offset].right_get_link();
-            }
-            return offset;
+            return node;
         }
     }
     
@@ -1511,7 +1407,7 @@ protected:
         size_type node = root_offset;
         while(node != offset_empty)
         {
-            bool is_left = get_key_comp()(index, node);
+            bool is_left = get_offset_comp()(index, node);
             stack.push_index(node, is_left);
             if(is_left)
             {
@@ -1537,7 +1433,7 @@ protected:
         size_type node = root_offset;
         while(node != offset_empty)
         {
-            bool is_left = get_key_comp()(key, get_key_t()(root_.value[node]));
+            bool is_left = get_key_comp()(key, get_key_t()(*root_.value[node].value()));
             stack.push_index(node, is_left);
             if(is_left)
             {
@@ -1549,7 +1445,7 @@ protected:
             }
             else
             {
-                if(!get_key_comp(get_key_t()(root_.value[node]), key))
+                if(!get_key_comp()(get_key_t()(*root_.value[node].value()), key))
                 {
                     return true;
                 }
@@ -1594,7 +1490,7 @@ protected:
         return false;
     }
     
-    void trb_insert_impl_(stack_t &stack, offset_type &root_offset, size_type index)
+    void trb_insert_(stack_t &stack, offset_type &root_offset, size_type index)
     {
         root_.node[index].set_used();
         root_.node[index].left_set_thread();
@@ -1754,7 +1650,7 @@ protected:
         root_.node[root_offset].set_black();
     }
     
-    void trb_remove_impl_(stack_t &stack, offset_type &root_offset)
+    void trb_remove_(stack_t &stack, offset_type &root_offset)
     {
         size_type k = stack.height - 1;
         size_type p = stack.get_index(k);
@@ -2119,7 +2015,7 @@ protected:
         size_type node = root_offset, where = offset_empty;
         while(node != offset_empty)
         {
-            if(get_key_comp()(get_key_t()(root_.node[node]), key))
+            if(get_key_comp()(get_key_t()(*root_.value[node].value()), key))
             {
                 if(root_.node[node].right_is_thread())
                 {
@@ -2147,7 +2043,7 @@ protected:
         upper = offset_empty;
         while(node != offset_empty)
         {
-            if(get_key_comp()(get_key_t()(root_.node[node]), key))
+            if(get_key_comp()(get_key_t()(*root_.value[node].value()), key))
             {
                 if(root_.node[node].right_is_thread())
                 {
@@ -2157,7 +2053,7 @@ protected:
             }
             else
             {
-                if(upper == offset_empty && get_key_comp()(key, get_key_t()(root_.node[node])))
+                if(upper == offset_empty && get_key_comp()(key, get_key_t()(*root_.value[node].value())))
                 {
                     upper = node;
                 }
@@ -2172,7 +2068,7 @@ protected:
         node = upper == offset_empty ? root_offset : root_.node[upper].left_is_child() ? root_.node[upper].left_get_link() : offset_empty;
         while(node != offset_empty)
         {
-            if(get_key_comp()(key, get_key_t()(root_.node[node])))
+            if(get_key_comp()(key, get_key_t()(*root_.value[node].value())))
             {
                 upper = node;
                 if(root_.node[node].left_is_thread())
@@ -2201,6 +2097,7 @@ struct threaded_rbtree_hash_map_config_t
     typedef key_t key_type;
     typedef value_t mapped_type;
     typedef std::pair<key_t const, value_t> value_type;
+    typedef std::pair<key_t, value_t> storage_type;
     typedef hasher_t hasher;
     typedef key_compare_t key_compare;
     typedef allocator_t allocator_type;
@@ -2227,8 +2124,9 @@ template<class key_t, class unique_t, class hasher_t, class key_compare_t, class
 struct threaded_rbtree_hash_set_config_t
 {
     typedef key_t key_type;
-    typedef key_t mapped_type;
-    typedef key_t value_type;
+    typedef key_t const mapped_type;
+    typedef key_t const value_type;
+    typedef key_t storage_type;
     typedef hasher_t hasher;
     typedef key_compare_t key_compare;
     typedef allocator_t allocator_type;

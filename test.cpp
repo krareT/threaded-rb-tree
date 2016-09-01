@@ -395,34 +395,44 @@ int main()
     std::cout << std::endl;
     
     test_all<int, trb_set_4      , times>("trb_set_4      ", v, count).exec(split);
+    test_all<int, trb_hash_4     , times>("trb_hash_4     ", v, count).exec(split);
     test_all<int, std_set_4      , times>("std_set_4      ", v, count).exec(split);
     test_all<int, std_hash_4     , times>("std_hash_4     ", v, count).exec(split);
     test_all<int, trb_set_32     , times>("trb_set_32     ", v, count).exec(split);
+    test_all<int, trb_hash_32    , times>("trb_hash_32    ", v, count).exec(split);
     test_all<int, std_set_32     , times>("std_set_32     ", v, count).exec(split);
     test_all<int, std_hash_32    , times>("std_hash_32    ", v, count).exec(split);
     test_all<int, trb_set_64     , times>("trb_set_64     ", v, count).exec(split);
+    test_all<int, trb_hash_64    , times>("trb_hash_64    ", v, count).exec(split);
     test_all<int, std_set_64     , times>("std_set_64     ", v, count).exec(split);
     test_all<int, std_hash_64    , times>("std_hash_64    ", v, count).exec(split);
     test_all<int, trb_set_128    , times>("trb_set_128    ", v, count).exec(split);
+    test_all<int, trb_hash_128   , times>("trb_hash_128   ", v, count).exec(split);
     test_all<int, std_set_128    , times>("std_set_128    ", v, count).exec(split);
     test_all<int, std_hash_128   , times>("std_hash_128   ", v, count).exec(split);
     test_all<int, trb_set_200    , times>("trb_set_200    ", v, count).exec(split);
+    test_all<int, trb_hash_200   , times>("trb_hash_200   ", v, count).exec(split);
     test_all<int, std_set_200    , times>("std_set_200    ", v, count).exec(split);
     test_all<int, std_hash_200   , times>("std_hash_200   ", v, count).exec(split);
     
     test_all<int, trb_mset_4      , times>("trb_mset_4     ", v, count).exec(split);
+    test_all<int, trb_mhash_4     , times>("trb_mhash_4    ", v, count).exec(split);
     test_all<int, std_mset_4      , times>("std_mset_4     ", v, count).exec(split);
     test_all<int, std_mhash_4     , times>("std_mhash_4    ", v, count).exec(split);
     test_all<int, trb_mset_32     , times>("trb_mset_32    ", v, count).exec(split);
+    test_all<int, trb_mhash_32    , times>("trb_mhash_32   ", v, count).exec(split);
     test_all<int, std_mset_32     , times>("std_mset_32    ", v, count).exec(split);
     test_all<int, std_mhash_32    , times>("std_mhash_32   ", v, count).exec(split);
     test_all<int, trb_mset_64     , times>("trb_mset_64    ", v, count).exec(split);
+    test_all<int, trb_mhash_64    , times>("trb_mhash_64   ", v, count).exec(split);
     test_all<int, std_mset_64     , times>("std_mset_64    ", v, count).exec(split);
     test_all<int, std_mhash_64    , times>("std_mhash_64   ", v, count).exec(split);
     test_all<int, trb_mset_128    , times>("trb_mset_128   ", v, count).exec(split);
+    test_all<int, trb_mhash_128   , times>("trb_mhash_128  ", v, count).exec(split);
     test_all<int, std_mset_128    , times>("std_mset_128   ", v, count).exec(split);
     test_all<int, std_mhash_128   , times>("std_mhash_128  ", v, count).exec(split);
     test_all<int, trb_mset_200    , times>("trb_mset_200   ", v, count).exec(split);
+    test_all<int, trb_mhash_200   , times>("trb_mhash_200  ", v, count).exec(split);
     test_all<int, std_mset_200    , times>("std_mset_200   ", v, count).exec(split);
     test_all<int, std_mhash_200   , times>("std_mhash_200  ", v, count).exec(split);
 }
