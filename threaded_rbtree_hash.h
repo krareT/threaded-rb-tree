@@ -1,4 +1,6 @@
+#pragma once
 
+#include "threaded_rb_tree.h"
 #include <stdexcept>
 #include <cstdint>
 #include <utility>
@@ -16,13 +18,16 @@ namespace threaded_rbtree_hash_detail
     class move_assign_tag
     {
     };
-    template<class T> struct is_trivial_expand : public std::is_trivial<T>
+    template<class T>
+    struct is_trivial_expand : public std::is_trivial<T>
     {
     };
-    template<class K, class V> struct is_trivial_expand<std::pair<K, V>> : public std::conditional<std::is_trivial<K>::value && std::is_trivial<V>::value, std::true_type, std::false_type>::type
+    template<class K, class V>
+    struct is_trivial_expand<std::pair<K, V>> : public std::conditional<std::is_trivial<K>::value && std::is_trivial<V>::value, std::true_type, std::false_type>::type
     {
     };
-    template<class iterator_t> struct get_tag
+    template<class iterator_t>
+    struct get_tag
     {
         typedef typename std::conditional<is_trivial_expand<typename std::iterator_traits<iterator_t>::value_type>::value, move_trivial_tag, move_assign_tag>::type type;
     };
@@ -42,12 +47,14 @@ namespace threaded_rbtree_hash_detail
         where->~iterator_value_t();
     }
     
-    template<class iterator_from_t, class iterator_to_t> void move_construct_and_destroy(iterator_from_t move_begin, iterator_from_t move_end, iterator_to_t to_begin, move_trivial_tag)
+    template<class iterator_from_t, class iterator_to_t>
+    void move_construct_and_destroy(iterator_from_t move_begin, iterator_from_t move_end, iterator_to_t to_begin, move_trivial_tag)
     {
         std::ptrdiff_t count = move_end - move_begin;
         std::memmove(&*to_begin, &*move_begin, count * sizeof(*move_begin));
     }
-    template<class iterator_from_t, class iterator_to_t> void move_construct_and_destroy(iterator_from_t move_begin, iterator_from_t move_end, iterator_to_t to_begin, move_assign_tag)
+    template<class iterator_from_t, class iterator_to_t>
+    void move_construct_and_destroy(iterator_from_t move_begin, iterator_from_t move_end, iterator_to_t to_begin, move_assign_tag)
     {
         for(; move_begin != move_end; ++move_begin)
         {
@@ -79,138 +86,14 @@ public:
     
     
 protected:
-    
-    static size_type constexpr flag_bit_mask = offset_type(1) << (sizeof(offset_type) * 8 - 1);
-    static size_type constexpr type_bit_mask = offset_type(1) << (sizeof(offset_type) * 8 - 2);
-    static size_type constexpr dir_bit_mask = flag_bit_mask;
-    static size_type constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
-    
-    static size_type constexpr offset_empty = ~offset_type(0) & ~full_bit_mask;
     static size_type constexpr max_stack_depth = 2 * (sizeof(offset_type) * 8 - 1);
     
-    struct node_t
-    {
-        offset_type children[2];
-        
-        bool left_is_child() const
-        {
-            return (children[0] & type_bit_mask) == 0;
-        }
-        bool right_is_child() const
-        {
-            return (children[1] & type_bit_mask) == 0;
-        }
-        bool left_is_thread() const
-        {
-            return (children[0] & type_bit_mask) != 0;
-        }
-        bool right_is_thread() const
-        {
-            return (children[1] & type_bit_mask) != 0;
-        }
-        
-        void left_set_child()
-        {
-            children[0] &= ~type_bit_mask;
-        }
-        void right_set_child()
-        {
-            children[1] &= ~type_bit_mask;
-        }
-        void left_set_thread()
-        {
-            children[0] |= type_bit_mask;
-        }
-        void right_set_thread()
-        {
-            children[1] |= type_bit_mask;
-        }
-        
-        void left_set_link(size_type link)
-        {
-            children[0] = (children[0] & full_bit_mask) | link;
-        }
-        void right_set_link(size_type link)
-        {
-            children[1] = (children[1] & full_bit_mask) | link;
-        }
-        size_type left_get_link() const
-        {
-            return children[0] & ~full_bit_mask;
-        }
-        size_type right_get_link() const
-        {
-            return children[1] & ~full_bit_mask;
-        }
-        
-        bool is_used() const
-        {
-            return (children[1] & flag_bit_mask) == 0;
-        }
-        void set_used()
-        {
-            children[1] &= ~flag_bit_mask;
-        }
-        bool is_empty() const
-        {
-            return (children[1] & flag_bit_mask) != 0;
-        }
-        void set_empty()
-        {
-            children[1] |= flag_bit_mask;
-        }
-        
-        bool is_black() const
-        {
-            return (children[0] & flag_bit_mask) == 0;
-        }
-        void set_black()
-        {
-            children[0] &= ~flag_bit_mask;
-        }
-        bool is_red() const
-        {
-            return (children[0] & flag_bit_mask) != 0;
-        }
-        void set_red()
-        {
-            children[0] |= flag_bit_mask;
-        }
-    };
-    struct stack_t
-    {
-        stack_t()
-        {
-            height = 0;
-        }
-        size_t height;
-        offset_type stack[max_stack_depth];
-        
-        bool is_left(size_t i) const
-        {
-            return (stack[i] & dir_bit_mask) == 0;
-        }
-        bool is_right(size_t i) const
-        {
-            return (stack[i] & dir_bit_mask) != 0;
-        }
-        size_type get_index(size_t i) const
-        {
-            return stack[i] & ~dir_bit_mask;
-        }
-        void push_index(size_type offset, bool left)
-        {
-            stack[height++] = offset | (left ? 0 : dir_bit_mask);
-        }
-        void update_index(size_type index, size_type offset, bool left)
-        {
-            stack[index] = offset | (left ? 0 : dir_bit_mask);
-        }
-        void update_index(size_type index, size_type offset)
-        {
-            stack[index] = offset | (stack[index] & dir_bit_mask);
-        }
-    };
+    typedef threaded_rb_tree_node_t<offset_type> node_t;
+    typedef threaded_rb_tree_stack_t<node_t, max_stack_depth> stack_t;
+    typedef threaded_rb_tree_root_t<node_t, std::false_type, std::false_type> trb_root_t;
+    
+    static size_type constexpr offset_empty = node_t::nil_sentinel;
+    
     struct value_t
     {
         typename std::aligned_storage<sizeof(storage_type), alignof(storage_type)>::type value_pod;
@@ -225,7 +108,7 @@ protected:
         }
     };
     
-    typedef typename allocator_type::template rebind<offset_type>::other bucket_allocator_t;
+    typedef typename allocator_type::template rebind<trb_root_t>::other bucket_allocator_t;
     typedef typename allocator_type::template rebind<node_t>::other node_allocator_t;
     typedef typename allocator_type::template rebind<value_t>::other value_allocator_t;
     struct root_t : public hasher, public key_compare, public bucket_allocator_t, public node_allocator_t, public value_allocator_t
@@ -254,9 +137,9 @@ protected:
         size_type capacity;
         size_type size;
         size_type free_count;
-        offset_type free_list;
+        size_type free_list;
         float setting_load_factor;
-        offset_type *bucket;
+        trb_root_t *bucket;
         node_t *node;
         value_t *value;
     };
@@ -291,6 +174,39 @@ protected:
         }
     };
     typedef get_key_select_t<key_type, storage_type> get_key_t;
+    
+    struct deref_node_t
+    {
+        node_t &operator()(size_type index) const
+        {
+            return root_ptr->node[index];
+        }
+        root_t const *root_ptr;
+    };
+    struct const_deref_node_t
+    {
+        node_t &operator()(size_type index) const
+        {
+            return root_ptr->node[index];
+        }
+        root_t const *root_ptr;
+    };
+    struct deref_value_t
+    {
+        storage_type &operator()(size_type index) const
+        {
+            return *root_ptr->value[index].value();
+        }
+        root_t *root_ptr;
+    };
+    struct const_deref_value_t
+    {
+        storage_type const &operator()(size_type index) const
+        {
+            return *root_ptr->value[index].value();
+        }
+        root_t const *root_ptr;
+    };
     struct offset_compare
     {
         bool operator()(size_type left, size_type right) const
@@ -313,6 +229,7 @@ protected:
         }
         root_t const *root_ptr;
     };
+    
 public:
     class iterator
     {
@@ -523,7 +440,11 @@ public:
     {
     }
     //empty
-    explicit threaded_rbtree_hash(size_type bucket_count, hasher const &hash = hasher(), key_compare const &compare = key_compare(), allocator_type const &alloc = allocator_type()) : root_(hash, compare, alloc)
+    explicit threaded_rbtree_hash(size_type bucket_count,
+                                  hasher const &hash = hasher(),
+                                  key_compare const &compare = key_compare(),
+                                  allocator_type const &alloc = allocator_type()
+                                  ) : root_(hash, compare, alloc)
     {
         rehash(bucket_count);
     }
@@ -542,19 +463,34 @@ public:
         rehash(bucket_count);
     }
     //range
-    template <class iterator_t> threaded_rbtree_hash(iterator_t begin, iterator_t end, size_type bucket_count = 8, hasher const &hash = hasher(), key_compare const &compare = key_compare(), allocator_type const &alloc = allocator_type()) : root_(hash, compare, alloc)
+    template <class iterator_t> threaded_rbtree_hash(iterator_t begin,
+                                                     iterator_t end,
+                                                     size_type bucket_count = 8,
+                                                     hasher const &hash = hasher(),
+                                                     key_compare const &compare = key_compare(),
+                                                     allocator_type const &alloc = allocator_type()
+                                                     ) : root_(hash, compare, alloc)
     {
         rehash(bucket_count);
         insert(begin, end);
     }
     //range
-    template <class iterator_t> threaded_rbtree_hash(iterator_t begin, iterator_t end, size_type bucket_count, allocator_type const &alloc) : root_(hasher(), key_compare(), alloc)
+    template <class iterator_t> threaded_rbtree_hash(iterator_t begin,
+                                                     iterator_t end,
+                                                     size_type bucket_count,
+                                                     allocator_type const &alloc
+                                                     ) : root_(hasher(), key_compare(), alloc)
     {
         rehash(bucket_count);
         insert(begin, end);
     }
     //range
-    template <class iterator_t> threaded_rbtree_hash(iterator_t begin, iterator_t end, size_type bucket_count, hasher const &hash, allocator_type const &alloc) : root_(hash, key_compare(), alloc)
+    template <class iterator_t> threaded_rbtree_hash(iterator_t begin,
+                                                     iterator_t end,
+                                                     size_type bucket_count,
+                                                     hasher const &hash,
+                                                     allocator_type const &alloc
+                                                     ) : root_(hash, key_compare(), alloc)
     {
         rehash(bucket_count);
         insert(begin, end);
@@ -565,7 +501,9 @@ public:
         copy_all_<false>(&other.root_);
     }
     //copy
-    threaded_rbtree_hash(threaded_rbtree_hash const &other, allocator_type const &alloc) : root_(other.get_hasher(), other.get_key_equal(), alloc)
+    threaded_rbtree_hash(threaded_rbtree_hash const &other,
+                         allocator_type const &alloc
+                         ) : root_(other.get_hasher(), other.get_key_equal(), alloc)
     {
         copy_all_<false>(&other.root_);
     }
@@ -575,20 +513,34 @@ public:
         swap(other);
     }
     //move
-    threaded_rbtree_hash(threaded_rbtree_hash &&other, allocator_type const &alloc) : root_(std::move(other.get_hasher()), std::move(other.get_key_compare()), alloc)
+    threaded_rbtree_hash(threaded_rbtree_hash &&other,
+                         allocator_type const &alloc
+                         ) : root_(std::move(other.get_hasher()), std::move(other.get_key_compare()), alloc)
     {
         copy_all_<true>(&other.root_);
     }
     //initializer list
-    threaded_rbtree_hash(std::initializer_list<value_type> il, size_type bucket_count = 8, hasher const &hash = hasher(), key_compare const &compare = key_compare(), allocator_type const &alloc = allocator_type()) : threaded_rbtree_hash(il.begin(), il.end(), std::distance(il.begin(), il.end()), hash, compare, alloc)
+    threaded_rbtree_hash(std::initializer_list<value_type> il,
+                         size_type bucket_count = 8,
+                         hasher const &hash = hasher(),
+                         key_compare const &compare = key_compare(),
+                         allocator_type const &alloc = allocator_type()
+                         ) : threaded_rbtree_hash(il.begin(), il.end(), std::distance(il.begin(), il.end()), hash, compare, alloc)
     {
     }
     //initializer list
-    threaded_rbtree_hash(std::initializer_list<value_type> il, size_type bucket_count, allocator_type const &alloc) : threaded_rbtree_hash(il.begin(), il.end(), std::distance(il.begin(), il.end()), alloc)
+    threaded_rbtree_hash(std::initializer_list<value_type> il,
+                         size_type bucket_count,
+                         allocator_type const &alloc
+                         ) : threaded_rbtree_hash(il.begin(), il.end(), std::distance(il.begin(), il.end()), alloc)
     {
     }
     //initializer list
-    threaded_rbtree_hash(std::initializer_list<value_type> il, size_type bucket_count, hasher const &hash, allocator_type const &alloc) : threaded_rbtree_hash(il.begin(), il.end(), std::distance(il.begin(), il.end()), hash, alloc)
+    threaded_rbtree_hash(std::initializer_list<value_type> il,
+                         size_type bucket_count,
+                         hasher const &hash,
+                         allocator_type const &alloc
+                         ) : threaded_rbtree_hash(il.begin(), il.end(), std::distance(il.begin(), il.end()), hash, alloc)
     {
     }
     //destructor
@@ -670,7 +622,8 @@ public:
         return result_<typename config_t::unique_type>(insert_value_(value));
     }
     //with hint
-    template<class in_value_t> typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, insert_result_t>::type insert(const_iterator hint, in_value_t &&value)
+    template<class in_value_t>
+    typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, insert_result_t>::type insert(const_iterator hint, in_value_t &&value)
     {
         return result_<typename config_t::unique_type>(insert_value_(std::forward<in_value_t>(value)));
     }
@@ -716,7 +669,10 @@ public:
         return const_iterator(find_value_(key), this);
     }
     
-    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, storage_type>::value, void>::type> mapped_type &at(in_key_t const &key)
+    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value
+                                                             && config_t::unique_type::value
+                                                             && !std::is_same<key_type, storage_type>::value
+                                                             , void>::type> mapped_type &at(in_key_t const &key)
     {
         offset_type offset = root_.size;
         if(root_.size != 0)
@@ -729,7 +685,10 @@ public:
         }
         return root_.value[offset].value()->second;
     }
-    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, storage_type>::value, void>::type> mapped_type const &at(in_key_t const &key) const
+    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value
+                                                             && config_t::unique_type::value
+                                                             && !std::is_same<key_type, storage_type>::value
+                                                             , void>::type> mapped_type const &at(in_key_t const &key) const
     {
         offset_type offset = root_.size;
         if(root_.size != 0)
@@ -743,7 +702,10 @@ public:
         return root_.value[offset].value()->second;
     }
     
-    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value && config_t::unique_type::value && !std::is_same<key_type, storage_type>::value, void>::type> mapped_type &operator[](in_key_t &&key)
+    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value
+                                                             && config_t::unique_type::value
+                                                             && !std::is_same<key_type, storage_type>::value
+                                                             , void>::type> mapped_type &operator[](in_key_t &&key)
     {
         offset_type offset = root_.size;
         if(root_.size != 0)
@@ -1041,7 +1003,7 @@ protected:
     
     size_type local_advance_next_(size_type i) const
     {
-        return trb_move_next_(i);
+        return threaded_rb_tree_move_next(i, deref_node_t(&root_));
     }
     
     template<class iterator_t, class ...args_t> static void construct_one_(iterator_t where, args_t &&...args)
@@ -1054,7 +1016,8 @@ protected:
         threaded_rbtree_hash_detail::destroy_one(where, typename threaded_rbtree_hash_detail::get_tag<iterator_t>::type());
     }
     
-    template<class iterator_from_t, class iterator_to_t> static void move_construct_and_destroy_(iterator_from_t move_begin, iterator_from_t move_end, iterator_to_t to_begin)
+    template<class iterator_from_t, class iterator_to_t>
+    static void move_construct_and_destroy_(iterator_from_t move_begin, iterator_from_t move_end, iterator_to_t to_begin)
     {
         threaded_rbtree_hash_detail::move_construct_and_destroy(move_begin, move_end, to_begin, typename threaded_rbtree_hash_detail::get_tag<iterator_from_t>::type());
     }
@@ -1139,32 +1102,16 @@ protected:
         }
     }
     
-    static bool is_prime_(size_type candidate)
+    static uint32_t get_prime_(std::integral_constant<size_t, 4>, size_type size)
     {
-        if((candidate & 1) != 0)
+        static uint32_t const prime_array[] =
         {
-            size_type limit = size_type(std::sqrt(candidate));
-            for(size_type divisor = 3; divisor <= limit; divisor += 2)
-            {
-                if((candidate % divisor) == 0)
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return (candidate == 2);
-    }
-    
-    static size_type get_prime_(size_type size)
-    {
-        static size_type const prime_array[] =
-        {
-            7, 11, 17, 23, 29, 37, 47, 59, 71, 89, 107, 131, 163, 197, 239, 293, 353, 431, 521, 631, 761, 919,
-            1103, 1327, 1597, 1931, 2333, 2801, 3371, 4049, 4861, 5839, 7013, 8419, 10103, 12143, 14591,
-            17519, 21023, 25229, 30293, 36353, 43627, 52361, 62851, 75431, 90523, 108631, 130363, 156437,
-            187751, 225307, 270371, 324449, 389357, 467237, 560689, 672827, 807403, 968897, 1162687, 1395263,
-            1674319, 2009191, 2411033, 2893249, 3471899, 4166287, 4999559, 5999471, 7199369
+            5,11,19,37,   53UL,         97UL,         193UL,       389UL,
+            769UL,        1543UL,       3079UL,       6151UL,      12289UL,
+            24593UL,      49157UL,      98317UL,      196613UL,    393241UL,
+            786433UL,     1572869UL,    3145739UL,    6291469UL,   12582917UL,
+            25165843UL,   50331653UL,   100663319UL,  201326611UL, 402653189UL,
+            805306457UL,  1610612741UL, 3221225473UL, 4294967291UL,
         };
         for(auto prime : prime_array)
         {
@@ -1173,21 +1120,67 @@ protected:
                 return prime;
             }
         }
-        for(size_type prime = (size | 1); prime < std::numeric_limits<uint32_t>::max(); prime += 2)
+        return *std::prev(std::end(prime_array));
+    }
+    
+    static uint64_t get_prime_(std::integral_constant<size_t, 8>, size_type size)
+    {
+        static uint64_t const prime_array[] =
         {
-            if(is_prime_(prime) && ((prime - 1) % 101 != 0))
+            5,11,19,37,   53UL,         97UL,         193UL,       389UL,
+            769UL,        1543UL,       3079UL,       6151UL,      12289UL,
+            24593UL,      49157UL,      98317UL,      196613UL,    393241UL,
+            786433UL,     1572869UL,    3145739UL,    6291469UL,   12582917UL,
+            25165843UL,   50331653UL,   100663319UL,  201326611UL, 402653189UL,
+            805306457UL,  1610612741UL, 3221225473UL, 4294967291UL,
+            /* 30 */ 8589934583ULL,
+            /* 31 */ 17179869143ULL,
+            /* 32 */ 34359738337ULL,
+            /* 33 */ 68719476731ULL,
+            /* 34 */ 137438953447ULL,
+            /* 35 */ 274877906899ULL,
+            /* 36 */ 549755813881ULL,
+            /* 37 */ 1099511627689ULL,
+            /* 38 */ 2199023255531ULL,
+            /* 39 */ 4398046511093ULL,
+            /* 40 */ 8796093022151ULL,
+            /* 41 */ 17592186044399ULL,
+            /* 42 */ 35184372088777ULL,
+            /* 43 */ 70368744177643ULL,
+            /* 44 */ 140737488355213ULL,
+            /* 45 */ 281474976710597ULL,
+            /* 46 */ 562949953421231ULL,
+            /* 47 */ 1125899906842597ULL,
+            /* 48 */ 2251799813685119ULL,
+            /* 49 */ 4503599627370449ULL,
+            /* 50 */ 9007199254740881ULL,
+            /* 51 */ 18014398509481951ULL,
+            /* 52 */ 36028797018963913ULL,
+            /* 53 */ 72057594037927931ULL,
+            /* 54 */ 144115188075855859ULL,
+            /* 55 */ 288230376151711717ULL,
+            /* 56 */ 576460752303423433ULL,
+            /* 57 */ 1152921504606846883ULL,
+            /* 58 */ 2305843009213693951ULL,
+            /* 59 */ 4611686018427387847ULL,
+            /* 60 */ 9223372036854775783ULL,
+            /* 61 */ 18446744073709551557ULL,
+        };
+        for(auto prime : prime_array)
+        {
+            if(prime >= size)
             {
                 return prime;
             }
         }
-        return size;
+        return *std::prev(std::end(prime_array));
     }
     
     void rehash_(size_type size)
     {
-        size = std::min(get_prime_(size), max_size());
-        offset_type *new_bucket = get_bucket_allocator_().allocate(size);
-        std::fill_n(new_bucket, size, offset_type(offset_empty));
+        size = std::min<size_type>(get_prime_(std::integral_constant<size_t, sizeof(size_type)>(), size), max_size());
+        trb_root_t *new_bucket = get_bucket_allocator_().allocate(size);
+        std::fill_n(new_bucket, size, trb_root_t());
         
         if(root_.bucket_count != 0)
         {
@@ -1197,8 +1190,8 @@ protected:
                 {
                     size_type bucket = get_hasher()(*root_.value[i].value()) % size;
                     stack_t stack;
-                    trb_find_path_for_multi_(stack, new_bucket[bucket], i);
-                    trb_insert_(stack, new_bucket[bucket], i);
+                    threaded_rb_tree_find_path_for_multi(new_bucket[bucket], stack, deref_node_t{&root_}, i, get_offset_comp());
+                    threaded_rb_tree_insert(new_bucket[bucket], stack, deref_node_t{&root_}, i);
                 }
             }
             get_bucket_allocator_().deallocate(root_.bucket, root_.bucket_count);
@@ -1265,12 +1258,15 @@ protected:
         return insert_value_uncheck_(typename config_t::unique_type(), std::forward<args_t>(args)...);
     }
     
-    template<class in_t, class ...args_t> typename std::enable_if<std::is_same<key_type, storage_type>::value && !std::is_same<typename std::remove_reference<in_t>::type, key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
+    template<class in_t, class ...args_t>
+    typename std::enable_if<std::is_same<key_type, storage_type>::value
+                            && !std::is_same<typename std::remove_reference<in_t>::type
+                            , key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
     {
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(trb_find_path_for_unique_(stack, root_.bucket[bucket], key))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_offset_comp()))
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1285,15 +1281,18 @@ protected:
         {
             ++root_.size;
         }
-        trb_insert_(stack, root_.bucket[bucket], offset);
+        threaded_rb_tree_insert(root_.bucket[bucket], stack, deref_node_t{&root_}, offset);
         return {offset, true};
     }
-    template<class in_t, class ...args_t> typename std::enable_if<!std::is_same<key_type, storage_type>::value || std::is_same<typename std::remove_reference<in_t>::type, key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
+    template<class in_t, class ...args_t>
+    typename std::enable_if<!std::is_same<key_type, storage_type>::value
+                            || std::is_same<typename std::remove_reference<in_t>::type
+                            , key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
     {
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(trb_find_path_for_unique_(stack, root_.bucket[bucket], key))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_offset_comp()))
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1308,7 +1307,7 @@ protected:
         {
             ++root_.size;
         }
-        trb_insert_(stack, root_.bucket[bucket], offset);
+        threaded_rb_tree_insert(root_.bucket[bucket], stack, deref_node_t{&root_}, offset);
         return {offset, true};
     }
     
@@ -1327,15 +1326,15 @@ protected:
         }
         size_type bucket = get_hasher()(get_key_t()(*root_.value[offset].value())) % root_.bucket_count;
         stack_t stack;
-        trb_find_path_for_multi_(stack, root_.bucket[bucket], offset);
-        trb_insert_(stack, root_.bucket[bucket], offset);
+        threaded_rb_tree_find_path_for_multi(root_.bucket[bucket], stack, deref_node_t{&root_}, offset, get_offset_comp());
+        threaded_rb_tree_insert(root_.bucket[bucket], stack, deref_node_t{&root_}, offset);
         return {offset, true};
     }
     
     size_type find_value_(key_type const &key) const
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
-        size_type offset = trb_lower_bound_(root_.bucket[bucket], key);
+        size_type offset = threaded_rb_tree_lower_bound(root_.bucket[bucket], deref_node_t{&root_}, key, const_deref_value_t{&root_}, get_key_t(), get_key_comp());
         return (offset == offset_empty || get_key_comp()(key, get_key_t()(*root_.value[offset].value()))) ? offset_empty : offset;
     }
     
@@ -1343,10 +1342,10 @@ protected:
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(trb_find_path_for_unique_(stack, root_.bucket[bucket], key))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_offset_comp()))
         {
             size_type offset = stack.get_index(stack.height - 1);
-            trb_remove_(stack, root_.bucket[bucket]);
+            threaded_rb_tree_remove(root_.bucket[bucket], stack, deref_node_t{&root_});
             destroy_one_(root_.value[offset].value());
             root_.node[offset].set_empty();
             root_.node[offset].left_set_link(root_.free_list);
@@ -1380,710 +1379,6 @@ protected:
         root_.node[offset].left_set_link(root_.free_list);
         root_.free_list = offset_type(offset);
     }
-    
-    offset_type trb_move_next_(size_type node)
-    {
-        if(root_.node[node].right_is_thread())
-        {
-            return root_.node[node].right_get_link();
-        }
-        else
-        {
-            node = root_.node[node].right_get_link();
-            while(root_.node[node].left_is_child())
-            {
-                node = root_.node[node].left_get_link();
-            }
-            return node;
-        }
-    }
-    
-    void trb_find_path_for_multi_(stack_t &stack, size_type root_offset, size_type index)
-    {
-        size_type node = root_offset;
-        while(node != offset_empty)
-        {
-            if(get_offset_comp()(index, node))
-            {
-                stack.push_index(node, true);
-                if(root_.node[node].left_is_thread())
-                {
-                    return;
-                }
-                node = root_.node[node].left_get_link();
-            }
-            else
-            {
-                stack.push_index(node, false);
-                if(root_.node[node].right_is_thread())
-                {
-                    return;
-                }
-                node = root_.node[node].right_get_link();
-            }
-        }
-    }
-    
-    bool trb_find_path_for_unique_(stack_t &stack, size_type root_offset, key_type const &key)
-    {
-        size_type node = root_offset;
-        while(node != offset_empty)
-        {
-            if(get_key_comp()(key, get_key_t()(*root_.value[node].value())))
-            {
-                stack.push_index(node, true);
-                if(root_.node[node].left_is_thread())
-                {
-                    return false;
-                }
-                node = root_.node[node].left_get_link();
-            }
-            else
-            {
-                stack.push_index(node, false);
-                if(!get_key_comp()(get_key_t()(*root_.value[node].value()), key))
-                {
-                    return true;
-                }
-                if(root_.node[node].right_is_thread())
-                {
-                    return false;
-                }
-                node = root_.node[node].right_get_link();
-            }
-        }
-        return false;
-    }
-    
-    bool trb_find_path_for_remove_(stack_t &stack, size_type root_offset, size_type index)
-    {
-        size_type node = root_offset;
-        while(node != offset_empty)
-        {
-            if(get_offset_comp()(index, node))
-            {
-                stack.push_index(node, true);
-                if(root_.node[node].left_is_thread())
-                {
-                    return false;
-                }
-                node = root_.node[node].left_get_link();
-            }
-            else
-            {
-                stack.push_index(node, false);
-                if(!get_offset_comp()(node, index))
-                {
-                    return true;
-                }
-                if(root_.node[node].right_is_thread())
-                {
-                    return false;
-                }
-                node = root_.node[node].right_get_link();
-            }
-        }
-        return false;
-    }
-    
-    void trb_insert_(stack_t &stack, offset_type &root_offset, size_type index)
-    {
-        root_.node[index].set_used();
-        root_.node[index].left_set_thread();
-        root_.node[index].right_set_thread();
-        
-        if(stack.height == 0)
-        {
-            root_.node[index].left_set_link(offset_empty);
-            root_.node[index].right_set_link(offset_empty);
-            root_.node[index].set_black();
-            root_offset = index;
-            return;
-        }
-        root_.node[index].set_red();
-        size_type k = stack.height - 1;
-        size_type where = stack.get_index(k);
-        if(stack.is_left(k))
-        {
-            root_.node[index].left_set_link(root_.node[where].left_get_link());
-            root_.node[index].right_set_link(where);
-            root_.node[where].left_set_child();
-            root_.node[where].left_set_link(index);
-        }
-        else
-        {
-            root_.node[index].right_set_link(root_.node[where].right_get_link());
-            root_.node[index].left_set_link(where);
-            root_.node[where].right_set_child();
-            root_.node[where].right_set_link(index);
-        }
-        if(k >= 1)
-        {
-            while(root_.node[stack.get_index(k)].is_red())
-            {
-                size_type p2 = stack.get_index(k - 1);
-                size_type p1 = stack.get_index(k);
-                if(stack.is_left(k - 1))
-                {
-                    size_type u = root_.node[p2].right_get_link();
-                    if(root_.node[p2].right_is_child() && root_.node[u].is_red())
-                    {
-                        root_.node[p1].set_black();
-                        root_.node[u].set_black();
-                        root_.node[p2].set_red();
-                        if(k < 2)
-                        {
-                            break;
-                        }
-                        k -= 2;
-                    }
-                    else
-                    {
-                        size_type y;
-                        if(stack.is_left(k))
-                        {
-                            y = p1;
-                        }
-                        else
-                        {
-                            y = root_.node[p1].right_get_link();
-                            root_.node[p1].right_set_link(root_.node[y].left_get_link());
-                            root_.node[y].left_set_link(p1);
-                            root_.node[p2].left_set_link(y);
-                            if(root_.node[y].left_is_thread())
-                            {
-                                root_.node[y].left_set_child();
-                                root_.node[p1].right_set_thread();
-                                root_.node[p1].right_set_link(y);
-                            }
-                        }
-                        root_.node[p2].set_red();
-                        root_.node[y].set_black();
-                        root_.node[p2].left_set_link(root_.node[y].right_get_link());
-                        root_.node[y].right_set_link(p2);
-                        if(k == 1)
-                        {
-                            root_offset = offset_type(y);
-                        }
-                        else if(stack.is_left(k - 2))
-                        {
-                            root_.node[stack.get_index(k - 2)].left_set_link(y);
-                        }
-                        else
-                        {
-                            root_.node[stack.get_index(k - 2)].right_set_link(y);
-                        }
-                        if(root_.node[y].right_is_thread())
-                        {
-                            root_.node[y].right_set_child();
-                            root_.node[p2].left_set_thread();
-                            root_.node[p2].left_set_link(y);
-                        }
-                        break;
-                    }
-                }
-                else
-                {
-                    size_type u = root_.node[p2].left_get_link();
-                    if(root_.node[p2].left_is_child() && root_.node[u].is_red())
-                    {
-                        root_.node[p1].set_black();
-                        root_.node[u].set_black();
-                        root_.node[p2].set_red();
-                        if(k < 2)
-                        {
-                            break;
-                        }
-                        k -= 2;
-                    }
-                    else
-                    {
-                        size_type y;
-                        if(stack.is_right(k))
-                        {
-                            y = p1;
-                        }
-                        else
-                        {
-                            y = root_.node[p1].left_get_link();
-                            root_.node[p1].left_set_link(root_.node[y].right_get_link());
-                            root_.node[y].right_set_link(p1);
-                            root_.node[p2].right_set_link(y);
-                            if(root_.node[y].right_is_thread())
-                            {
-                                root_.node[y].right_set_child();
-                                root_.node[p1].left_set_thread();
-                                root_.node[p1].left_set_link(y);
-                            }
-                        }
-                        root_.node[p2].set_red();
-                        root_.node[y].set_black();
-                        root_.node[p2].right_set_link(root_.node[y].left_get_link());
-                        root_.node[y].left_set_link(p2);
-                        if(k == 1)
-                        {
-                            root_offset = offset_type(y);
-                        }
-                        else if(stack.is_right(k - 2))
-                        {
-                            root_.node[stack.get_index(k - 2)].right_set_link(y);
-                        }
-                        else
-                        {
-                            root_.node[stack.get_index(k - 2)].left_set_link(y);
-                        }
-                        if(root_.node[y].left_is_thread())
-                        {
-                            root_.node[y].left_set_child();
-                            root_.node[p2].right_set_thread();
-                            root_.node[p2].right_set_link(y);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        root_.node[root_offset].set_black();
-    }
-    
-    void trb_remove_(stack_t &stack, offset_type &root_offset)
-    {
-        size_type k = stack.height - 1;
-        size_type p = stack.get_index(k);
-        if(root_.node[p].right_is_thread())
-        {
-            if(root_.node[p].left_is_child())
-            {
-                size_type t = root_.node[p].left_get_link();
-                while(root_.node[t].right_is_child())
-                {
-                    t = root_.node[t].right_get_link();
-                }
-                root_.node[t].right_set_link(root_.node[p].right_get_link());
-                if(k == 0)
-                {
-                    root_offset = offset_type(root_.node[p].left_get_link());
-                }
-                else if(stack.is_left(k - 1))
-                {
-                    root_.node[stack.get_index(k - 1)].left_set_link(root_.node[p].left_get_link());
-                }
-                else
-                {
-                    root_.node[stack.get_index(k - 1)].right_set_link(root_.node[p].left_get_link());
-                }
-            }
-            else
-            {
-                if(k == 0)
-                {
-                    root_offset = offset_type(root_.node[p].left_get_link());
-                }
-                else if(stack.is_left(k - 1))
-                {
-                    root_.node[stack.get_index(k - 1)].left_set_link(root_.node[p].left_get_link());
-                    root_.node[stack.get_index(k - 1)].left_set_thread();
-                }
-                else
-                {
-                    root_.node[stack.get_index(k - 1)].right_set_link(root_.node[p].right_get_link());
-                    root_.node[stack.get_index(k - 1)].right_set_thread();
-                }
-            }
-        }
-        else
-        {
-            size_type r = root_.node[p].right_get_link();
-            if(root_.node[r].left_is_thread())
-            {
-                root_.node[r].left_set_link(root_.node[p].left_get_link());
-                if(root_.node[p].left_is_child())
-                {
-                    root_.node[r].left_set_child();
-                    size_type t = root_.node[p].left_get_link();
-                    while(root_.node[t].right_is_child())
-                    {
-                        t = root_.node[t].right_get_link();
-                    }
-                    root_.node[t].right_set_link(r);
-                }
-                else
-                {
-                    root_.node[r].left_set_thread();
-                }
-                if(k == 0)
-                {
-                    root_offset = offset_type(r);
-                }
-                else if(stack.is_left(k - 1))
-                {
-                    root_.node[stack.get_index(k - 1)].left_set_link(r);
-                }
-                else
-                {
-                    root_.node[stack.get_index(k - 1)].right_set_link(r);
-                }
-                bool is_red = root_.node[r].is_red();
-                if(root_.node[p].is_red())
-                {
-                    root_.node[r].set_red();
-                }
-                else
-                {
-                    root_.node[r].set_black();
-                }
-                if(is_red)
-                {
-                    root_.node[p].set_red();
-                }
-                else
-                {
-                    root_.node[p].set_black();
-                }
-                stack.update_index(k, r, false);
-                ++k;
-            }
-            else
-            {
-                size_type s;
-                size_t const j = stack.height - 1;
-                for(++k; ; )
-                {
-                    stack.update_index(k, r, true);
-                    ++k;
-                    s = root_.node[r].left_get_link();
-                    if(root_.node[s].left_is_thread())
-                    {
-                        break;
-                    }
-                    r = s;
-                }
-                stack.update_index(j, s, false);
-                if(root_.node[s].right_is_child())
-                {
-                    root_.node[r].left_set_link(root_.node[s].right_get_link());
-                }
-                else
-                {
-                    root_.node[r].left_set_thread();
-                }
-                root_.node[s].left_set_link(root_.node[p].left_get_link());
-                if(root_.node[p].left_is_child())
-                {
-                    size_type t = root_.node[p].left_get_link();
-                    while(root_.node[t].right_is_child())
-                    {
-                        t = root_.node[t].right_get_link();
-                    }
-                    root_.node[t].right_set_link(s);
-                    root_.node[s].left_set_child();
-                }
-                root_.node[s].right_set_link(root_.node[p].right_get_link());
-                root_.node[s].right_set_child();
-                bool is_red = root_.node[p].is_red();
-                if(root_.node[s].is_red())
-                {
-                    root_.node[p].set_red();
-                }
-                else
-                {
-                    root_.node[p].set_black();
-                }
-                if(is_red)
-                {
-                    root_.node[s].set_red();
-                }
-                else
-                {
-                    root_.node[s].set_black();
-                }
-                if(j == 0)
-                {
-                    root_offset = offset_type(s);
-                }
-                else if(stack.is_left(j - 1))
-                {
-                    root_.node[stack.get_index(j - 1)].left_set_link(s);
-                }
-                else
-                {
-                    root_.node[stack.get_index(j - 1)].right_set_link(s);
-                }
-            }
-        }
-        if(root_.node[p].is_black())
-        {
-            for(; k > 1; --k)
-            {
-                if(stack.is_left(k - 1))
-                {
-                    if(root_.node[stack.get_index(k - 1)].left_is_child())
-                    {
-                        size_type x = root_.node[stack.get_index(k - 1)].left_get_link();
-                        if(root_.node[x].is_red())
-                        {
-                            root_.node[x].set_black();
-                            break;
-                        }
-                    }
-                    size_type w = root_.node[stack.get_index(k - 1)].right_get_link();
-                    if(root_.node[w].is_red())
-                    {
-                        root_.node[w].set_black();
-                        root_.node[stack.get_index(k - 1)].set_red();
-                        root_.node[stack.get_index(k - 1)].right_set_link(root_.node[w].left_get_link());
-                        root_.node[w].left_set_link(stack.get_index(k - 1));
-                        if(k == 1)
-                        {
-                            root_offset = offset_type(w);
-                        }
-                        else if(stack.is_left(k - 2))
-                        {
-                            root_.node[stack.get_index(k - 2)].left_set_link(w);
-                        }
-                        else
-                        {
-                            root_.node[stack.get_index(k - 2)].right_set_link(w);
-                        }
-                        stack.update_index(k, stack.get_index(k - 1), true);
-                        stack.update_index(k - 1, w);
-                        w = root_.node[stack.get_index(k)].right_get_link();
-                        ++k;
-                    }
-                    if((root_.node[w].left_is_thread() || root_.node[root_.node[w].left_get_link()].is_black()) && (root_.node[w].right_is_thread() || root_.node[root_.node[w].right_get_link()].is_black()))
-                    {
-                        root_.node[w].set_red();
-                    }
-                    else
-                    {
-                        if(root_.node[w].right_is_thread() || root_.node[root_.node[w].right_get_link()].is_black())
-                        {
-                            size_type y = root_.node[w].left_get_link();
-                            root_.node[y].set_black();
-                            root_.node[w].set_red();
-                            root_.node[w].left_set_link(root_.node[y].right_get_link());
-                            root_.node[y].right_set_link(w);
-                            root_.node[stack.get_index(k - 1)].right_set_link(y);
-                            if(root_.node[y].right_is_thread())
-                            {
-                                size_type z = root_.node[y].right_get_link();
-                                root_.node[y].right_set_child();
-                                root_.node[z].left_set_thread();
-                                root_.node[z].left_set_link(y);
-                            }
-                            w = y;
-                        }
-                        if(root_.node[stack.get_index(k - 1)].is_red())
-                        {
-                            root_.node[w].set_red();
-                        }
-                        else
-                        {
-                            root_.node[w].set_black();
-                        }
-                        root_.node[stack.get_index(k - 1)].set_black();
-                        root_.node[root_.node[w].right_get_link()].set_black();
-                        root_.node[stack.get_index(k - 1)].right_set_link(root_.node[w].left_get_link());
-                        root_.node[w].left_set_link(stack.get_index(k - 1));
-                        if(k == 1)
-                        {
-                            root_offset = offset_type(w);
-                        }
-                        else if(stack.is_left(k - 2))
-                        {
-                            root_.node[stack.get_index(k - 2)].left_set_link(w);
-                        }
-                        else
-                        {
-                            root_.node[stack.get_index(k - 2)].right_set_link(w);
-                        }
-                        if(root_.node[w].left_is_thread())
-                        {
-                            root_.node[w].left_set_child();
-                            root_.node[stack.get_index(k - 1)].right_set_thread();
-                            root_.node[stack.get_index(k - 1)].right_set_link(w);
-                        }
-                        break;
-                    }
-                }
-                else
-                {
-                    if(root_.node[stack.get_index(k - 1)].right_is_child())
-                    {
-                        size_type x = root_.node[stack.get_index(k - 1)].right_get_link();
-                        if(root_.node[x].is_red())
-                        {
-                            root_.node[x].set_black();
-                            break;
-                        }
-                    }
-                    size_type w = root_.node[stack.get_index(k - 1)].left_get_link();
-                    if(root_.node[w].is_red())
-                    {
-                        root_.node[w].set_black();
-                        root_.node[stack.get_index(k - 1)].set_red();
-                        root_.node[stack.get_index(k - 1)].left_set_link(root_.node[w].right_get_link());
-                        root_.node[w].right_set_link(stack.get_index(k - 1));
-                        if(k == 1)
-                        {
-                            root_offset = offset_type(w);
-                        }
-                        else if(stack.is_right(k - 2))
-                        {
-                            root_.node[stack.get_index(k - 2)].right_set_link(w);
-                        }
-                        else
-                        {
-                            root_.node[stack.get_index(k - 2)].left_set_link(w);
-                        }
-                        stack.update_index(k, stack.get_index(k - 1), false);
-                        stack.update_index(k - 1, w);
-                        w = root_.node[stack.get_index(k)].left_get_link();
-                        ++k;
-                    }
-                    if((root_.node[w].right_is_thread() || root_.node[root_.node[w].right_get_link()].is_black()) && (root_.node[w].left_is_thread() || root_.node[root_.node[w].left_get_link()].is_black()))
-                    {
-                        root_.node[w].set_red();
-                    }
-                    else
-                    {
-                        if(root_.node[w].left_is_thread() || root_.node[root_.node[w].left_get_link()].is_black())
-                        {
-                            size_type y = root_.node[w].right_get_link();
-                            root_.node[y].set_black();
-                            root_.node[w].set_red();
-                            root_.node[w].right_set_link(root_.node[y].left_get_link());
-                            root_.node[y].left_set_link(w);
-                            root_.node[stack.get_index(k - 1)].left_set_link(y);
-                            if(root_.node[y].left_is_thread())
-                            {
-                                size_type z = root_.node[y].left_get_link();
-                                root_.node[y].left_set_child();
-                                root_.node[z].right_set_thread();
-                                root_.node[z].right_set_link(y);
-                            }
-                            w = y;
-                        }
-                        if(root_.node[stack.get_index(k - 1)].is_red())
-                        {
-                            root_.node[w].set_red();
-                        }
-                        else
-                        {
-                            root_.node[w].set_black();
-                        }
-                        root_.node[stack.get_index(k - 1)].set_black();
-                        root_.node[root_.node[w].left_get_link()].set_black();
-                        root_.node[stack.get_index(k - 1)].left_set_link(root_.node[w].right_get_link());
-                        root_.node[w].right_set_link(stack.get_index(k - 1));
-                        if(k == 1)
-                        {
-                            root_offset = offset_type(w);
-                        }
-                        else if(stack.is_right(k - 2))
-                        {
-                            root_.node[stack.get_index(k - 2)].right_set_link(w);
-                        }
-                        else
-                        {
-                            root_.node[stack.get_index(k - 2)].left_set_link(w);
-                        }
-                        if(root_.node[w].right_is_thread())
-                        {
-                            root_.node[w].right_set_child();
-                            root_.node[stack.get_index(k - 1)].left_set_thread();
-                            root_.node[stack.get_index(k - 1)].left_set_link(w);
-                        }
-                        break;
-                    }
-                }
-            }
-            if(root_offset != offset_empty)
-            {
-                root_.node[root_offset].set_black();
-            }
-        }
-    }
-    
-    
-    size_type trb_lower_bound_(size_type root_offset, key_type const &key) const
-    {
-        size_type node = root_offset, where = offset_empty;
-        while(node != offset_empty)
-        {
-            if(get_key_comp()(get_key_t()(*root_.value[node].value()), key))
-            {
-                if(root_.node[node].right_is_thread())
-                {
-                    break;
-                }
-                node = root_.node[node].right_get_link();
-            }
-            else
-            {
-                where = node;
-                if(root_.node[node].left_is_thread())
-                {
-                    break;
-                }
-                node = root_.node[node].left_get_link();
-            }
-        }
-        return where;
-    }
-    
-    void trb_equal_range_(size_type root_offset, key_type const &key, size_type &lower, size_type &upper) const
-    {
-        size_type node = root_offset;
-        lower = offset_empty;
-        upper = offset_empty;
-        while(node != offset_empty)
-        {
-            if(get_key_comp()(get_key_t()(*root_.value[node].value()), key))
-            {
-                if(root_.node[node].right_is_thread())
-                {
-                    break;
-                }
-                node = root_.node[node].right_get_link();
-            }
-            else
-            {
-                if(upper == offset_empty && get_key_comp()(key, get_key_t()(*root_.value[node].value())))
-                {
-                    upper = node;
-                }
-                lower = node;
-                if(root_.node[node].left_is_thread())
-                {
-                    break;
-                }
-                node = root_.node[node].left_get_link();
-            }
-        }
-        node = upper == offset_empty ? root_offset : root_.node[upper].left_is_child() ? root_.node[upper].left_get_link() : offset_empty;
-        while(node != offset_empty)
-        {
-            if(get_key_comp()(key, get_key_t()(*root_.value[node].value())))
-            {
-                upper = node;
-                if(root_.node[node].left_is_thread())
-                {
-                    break;
-                }
-                node = root_.node[node].left_get_link();
-            }
-            else
-            {
-                if(root_.node[node].right_is_thread())
-                {
-                    break;
-                }
-                node = root_.node[node].right_get_link();
-            }
-        }
-    }
-
 };
 
 
