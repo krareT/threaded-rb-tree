@@ -133,11 +133,11 @@ protected:
             node = nullptr;
             value = nullptr;
         }
-        size_type bucket_count;
-        size_type capacity;
-        size_type size;
-        size_type free_count;
-        size_type free_list;
+        typename threaded_rbtree_hash::size_type bucket_count;
+        typename threaded_rbtree_hash::size_type capacity;
+        typename threaded_rbtree_hash::size_type size;
+        typename threaded_rbtree_hash::size_type free_count;
+        typename threaded_rbtree_hash::size_type free_list;
         float setting_load_factor;
         trb_root_t *bucket;
         node_t *node;
@@ -212,13 +212,13 @@ protected:
         bool operator()(size_type left, size_type right) const
         {
             key_compare const &compare = *root_ptr;
-            auto const &left_value = get_key_t()(*root_ptr->value[left].value());
-            auto const &right_value = get_key_t()(*root_ptr->value[right].value());
-            if(compare(config_t::get_key(left_value), config_t::get_key(right_value)))
+            auto const &left_key = config_t::get_key(*root_ptr->value[left].value());
+            auto const &right_key = config_t::get_key(*root_ptr->value[right].value());
+            if(compare(left_key, right_key))
             {
                 return true;
             }
-            else if(compare(config_t::get_key(right_value), config_t::get_key(left_value)))
+            else if(compare(right_key, left_key))
             {
                 return false;
             }
@@ -240,7 +240,7 @@ public:
         typedef typename threaded_rbtree_hash::reference reference;
         typedef typename threaded_rbtree_hash::pointer pointer;
     public:
-        iterator(size_type _offset, threaded_rbtree_hash const *_self) : offset(_offset), self(_self)
+        iterator(size_type _offset, threaded_rbtree_hash *_self) : offset(_offset), self(_self)
         {
         }
         iterator(iterator const &) = default;
@@ -274,7 +274,7 @@ public:
     private:
         friend class threaded_rbtree_hash;
         size_type offset;
-        threaded_rbtree_hash const *self;
+        threaded_rbtree_hash *self;
     };
     class const_iterator
     {
@@ -335,7 +335,7 @@ public:
         typedef typename threaded_rbtree_hash::reference reference;
         typedef typename threaded_rbtree_hash::pointer pointer;
     public:
-        local_iterator(size_type _offset, threaded_rbtree_hash const *_self) : offset(_offset), self(_self)
+        local_iterator(size_type _offset, threaded_rbtree_hash *_self) : offset(_offset), self(_self)
         {
         }
         local_iterator(local_iterator const &) = default;
@@ -369,7 +369,7 @@ public:
     private:
         friend class threaded_rbtree_hash;
         size_type offset;
-        threaded_rbtree_hash const *self;
+        threaded_rbtree_hash *self;
     };
     class const_local_iterator
     {
@@ -424,14 +424,14 @@ public:
     typedef typename std::conditional<config_t::unique_type::value, std::pair<iterator, bool>, iterator>::type insert_result_t;
     typedef std::pair<iterator, bool> pair_ib_t;
 protected:
-    typedef std::pair<size_type, bool> pair_posi_t;
-    template<class unique_type> typename std::enable_if<unique_type::value, insert_result_t>::type result_(pair_posi_t posi)
+    typedef std::pair<size_type, bool> pair_posb_t;
+    template<class unique_type> typename std::enable_if<unique_type::value, insert_result_t>::type result_(pair_posb_t posb)
     {
-        return std::make_pair(iterator(posi.first, this), posi.second);
+        return std::make_pair(iterator(posb.first, this), posb.second);
     }
-    template<class unique_type> typename std::enable_if<!unique_type::value, insert_result_t>::type result_(pair_posi_t posi)
+    template<class unique_type> typename std::enable_if<!unique_type::value, insert_result_t>::type result_(pair_posb_t posb)
     {
-        return iterator(posi.first, this);
+        return iterator(posb.first, this);
     }
     
 public:
@@ -619,6 +619,7 @@ public:
     //with hint
     iterator insert(const_iterator hint, value_type const &value)
     {
+        return iterator(insert_value_(value).first, this);
     }
     //with hint
     template<class in_value_t>
@@ -1052,6 +1053,7 @@ protected:
         if(root_.capacity != 0)
         {
             std::memset(root_.node, 0xFFFFFFFF, sizeof(node_t) * root_.capacity);
+
         }
         root_.size = 0;
         root_.free_count = 0;
@@ -1184,6 +1186,7 @@ protected:
                 {
                     size_type bucket = get_hasher()(get_key_t()(*root_.value[i].value())) % size;
                     stack_t stack;
+                    threaded_rb_tree_find_path_for_multi(new_bucket[bucket], stack, const_deref_node_t{&root_}, i, get_offset_comp());
                     threaded_rb_tree_insert(new_bucket[bucket], stack, deref_node_t{&root_}, i);
                 }
             }
@@ -1245,7 +1248,7 @@ protected:
         }
     }
     
-    template<class ...args_t> pair_posi_t insert_value_(args_t &&...args)
+    template<class ...args_t> pair_posb_t insert_value_(args_t &&...args)
     {
         check_grow_();
         return insert_value_uncheck_(typename config_t::unique_type(), std::forward<args_t>(args)...);
@@ -1254,7 +1257,7 @@ protected:
     template<class in_t, class ...args_t>
     typename std::enable_if<std::is_same<key_type, storage_type>::value
                             && !std::is_same<typename std::remove_reference<in_t>::type
-                            , key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
+                            , key_type>::value, pair_posb_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
     {
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
@@ -1280,7 +1283,7 @@ protected:
     template<class in_t, class ...args_t>
     typename std::enable_if<!std::is_same<key_type, storage_type>::value
                             || std::is_same<typename std::remove_reference<in_t>::type
-                            , key_type>::value, pair_posi_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
+                            , key_type>::value, pair_posb_t>::type insert_value_uncheck_(std::true_type, in_t &&in, args_t &&...args)
     {
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
@@ -1304,7 +1307,7 @@ protected:
         return {offset, true};
     }
     
-    template<class in_t, class ...args_t> pair_posi_t insert_value_uncheck_(std::false_type, in_t &&in, args_t &&...args)
+    template<class in_t, class ...args_t> pair_posb_t insert_value_uncheck_(std::false_type, in_t &&in, args_t &&...args)
     {
         size_type offset = root_.free_list == offset_empty ? root_.size : root_.free_list;
         construct_one_(root_.value[offset].value(), std::forward<in_t>(in), std::forward<args_t>(args)...);
@@ -1363,6 +1366,7 @@ protected:
     
     void remove_offset_(size_type offset)
     {
+        size_type bucket = get_hasher()(get_key_t()(*root_.value[offset].value())) % root_.bucket_count;
         stack_t stack;
         threaded_rb_tree_find_path_for_remove(root_.bucket[bucket], stack, deref_node_t{&root_}, offset, get_offset_comp());
         threaded_rb_tree_remove(root_.bucket[bucket], stack, deref_node_t{&root_});
@@ -1373,8 +1377,13 @@ protected:
     }
 };
 
+template<class key_t, class unique_t, class hasher_t, class key_compare_t, class allocator_t>
+struct threaded_rbtree_hash_set_config_t
 {
     typedef key_t key_type;
+    typedef key_t const mapped_type;
+    typedef key_t const value_type;
+    typedef key_t storage_type;
     typedef hasher_t hasher;
     typedef key_compare_t key_compare;
     typedef allocator_t allocator_type;
@@ -1387,11 +1396,17 @@ protected:
     }
     template<class in_type> static key_type const &get_key(in_type &&value)
     {
+        return value;
     }
 };
 
+template<class key_t, class value_t, class unique_t, class hasher_t, class key_compare_t, class allocator_t>
+struct threaded_rbtree_hash_map_config_t
 {
     typedef key_t key_type;
+    typedef value_t mapped_type;
+    typedef std::pair<key_t const, value_t> value_type;
+    typedef std::pair<key_t, value_t> storage_type;
     typedef hasher_t hasher;
     typedef key_compare_t key_compare;
     typedef allocator_t allocator_type;
@@ -1404,13 +1419,21 @@ protected:
     }
     template<class in_type> static key_type const &get_key(in_type &&value)
     {
+        return value.first;
     }
 };
+
 template<class key_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<key_t>>
 using trb_hash_set = threaded_rbtree_hash<threaded_rbtree_hash_set_config_t<key_t, std::true_type, hasher_t, key_compare_t, allocator_t>>;
 
 template<class key_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<key_t>>
 using trb_hash_multiset = threaded_rbtree_hash<threaded_rbtree_hash_set_config_t<key_t, std::false_type, hasher_t, key_compare_t, allocator_t>>;
+
+template<class key_t, class value_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<std::pair<key_t const, value_t>>>
+using trb_hash_map = threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::true_type, hasher_t, key_compare_t, allocator_t>>;
+
+template<class key_t, class value_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<std::pair<key_t const, value_t>>>
+using trb_hash_multimap = threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::false_type, hasher_t, key_compare_t, allocator_t>>;
 
 
 
