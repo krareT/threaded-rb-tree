@@ -86,7 +86,7 @@ protected:
     static size_type constexpr full_bit_mask = flag_bit_mask | type_bit_mask;
     
     static size_type constexpr offset_empty = ~offset_type(0) & ~full_bit_mask;
-    static size_type constexpr max_stack_depth = sizeof(offset_type) * 12;
+    static size_type constexpr max_stack_depth = 2 * (sizeof(offset_type) * 8 - 1);
     
     struct node_t
     {
@@ -200,10 +200,6 @@ protected:
         }
         void push_index(size_type offset, bool left)
         {
-            if(height == max_stack_depth)
-            {
-                throw std::length_error("thread_tbtree_hash overflow");
-            }
             stack[height++] = offset | (left ? 0 : dir_bit_mask);
         }
         void update_index(size_type index, size_type offset, bool left)
@@ -1407,10 +1403,9 @@ protected:
         size_type node = root_offset;
         while(node != offset_empty)
         {
-            bool is_left = get_offset_comp()(index, node);
-            stack.push_index(node, is_left);
-            if(is_left)
+            if(get_offset_comp()(index, node))
             {
+                stack.push_index(node, true);
                 if(root_.node[node].left_is_thread())
                 {
                     return;
@@ -1419,6 +1414,7 @@ protected:
             }
             else
             {
+                stack.push_index(node, false);
                 if(root_.node[node].right_is_thread())
                 {
                     return;
@@ -1433,10 +1429,9 @@ protected:
         size_type node = root_offset;
         while(node != offset_empty)
         {
-            bool is_left = get_key_comp()(key, get_key_t()(*root_.value[node].value()));
-            stack.push_index(node, is_left);
-            if(is_left)
+            if(get_key_comp()(key, get_key_t()(*root_.value[node].value())))
             {
+                stack.push_index(node, true);
                 if(root_.node[node].left_is_thread())
                 {
                     return false;
@@ -1445,6 +1440,7 @@ protected:
             }
             else
             {
+                stack.push_index(node, false);
                 if(!get_key_comp()(get_key_t()(*root_.value[node].value()), key))
                 {
                     return true;
@@ -1464,10 +1460,9 @@ protected:
         size_type node = root_offset;
         while(node != offset_empty)
         {
-            bool is_left = get_offset_comp()(index, node);
-            stack.push_index(node, is_left);
-            if(is_left)
+            if(get_offset_comp()(index, node))
             {
+                stack.push_index(node, true);
                 if(root_.node[node].left_is_thread())
                 {
                     return false;
@@ -1476,6 +1471,7 @@ protected:
             }
             else
             {
+                stack.push_index(node, false);
                 if(!get_offset_comp()(node, index))
                 {
                     return true;
