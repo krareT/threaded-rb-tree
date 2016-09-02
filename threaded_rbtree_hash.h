@@ -257,11 +257,11 @@ public:
         }
         reference operator *() const
         {
-            return *self->root_.value[offset].value();
+            return reinterpret_cast<reference>(*self->root_.value[offset].value());
         }
         pointer operator->() const
         {
-            return self->root_.value[offset].value();
+            return reinterpret_cast<pointer>(self->root_.value[offset].value());
         }
         bool operator == (iterator const &other) const
         {
@@ -307,11 +307,11 @@ public:
         }
         const_reference operator *() const
         {
-            return *self->root_.value[offset].value();
+            return reinterpret_cast<const_reference>(*self->root_.value[offset].value());
         }
         const_pointer operator->() const
         {
-            return self->root_.value[offset].value();
+            return reinterpret_cast<const_pointer>(self->root_.value[offset].value());
         }
         bool operator == (const_iterator const &other) const
         {
@@ -352,11 +352,11 @@ public:
         }
         reference operator *() const
         {
-            return *self->root_.value[offset].value();
+            return reinterpret_cast<reference>(*self->root_.value[offset].value());
         }
         pointer operator->() const
         {
-            return self->root_.value[offset].value();
+            return reinterpret_cast<pointer>(self->root_.value[offset].value());
         }
         bool operator == (local_iterator const &other) const
         {
@@ -402,11 +402,11 @@ public:
         }
         const_reference operator *() const
         {
-            return *self->root_.value[offset].value();
+            return reinterpret_cast<const_reference>(*self->root_.value[offset].value());
         }
         const_pointer operator->() const
         {
-            return self->root_.value[offset].value();
+            return reinterpret_cast<const_pointer>(self->root_.value[offset].value());
         }
         bool operator == (const_local_iterator const &other) const
         {
@@ -496,14 +496,14 @@ public:
         insert(begin, end);
     }
     //copy
-    threaded_rbtree_hash(threaded_rbtree_hash const &other) : root_(other.get_hasher(), other.get_key_equal(), other.get_value_allocator_())
+    threaded_rbtree_hash(threaded_rbtree_hash const &other) : root_(other.get_hasher(), other.get_key_comp(), other.get_value_allocator_())
     {
         copy_all_<false>(&other.root_);
     }
     //copy
     threaded_rbtree_hash(threaded_rbtree_hash const &other,
                          allocator_type const &alloc
-                         ) : root_(other.get_hasher(), other.get_key_equal(), alloc)
+                         ) : root_(other.get_hasher(), other.get_key_comp(), alloc)
     {
         copy_all_<false>(&other.root_);
     }
@@ -515,7 +515,7 @@ public:
     //move
     threaded_rbtree_hash(threaded_rbtree_hash &&other,
                          allocator_type const &alloc
-                         ) : root_(std::move(other.get_hasher()), std::move(other.get_key_compare()), alloc)
+                         ) : root_(std::move(other.get_hasher()), std::move(other.get_key_comp()), alloc)
     {
         copy_all_<true>(&other.root_);
     }
@@ -835,7 +835,7 @@ public:
     
     local_iterator begin(size_type n)
     {
-        return local_iterator(root_.bucket[n], this);
+        return local_iterator(root_.bucket[n].root.root, this);
     }
     local_iterator end(size_type n)
     {
@@ -843,7 +843,7 @@ public:
     }
     const_local_iterator begin(size_type n) const
     {
-        return const_local_iterator(root_.bucket[n], this);
+        return const_local_iterator(root_.bucket[n].root.root, this);
     }
     const_local_iterator end(size_type n) const
     {
@@ -851,7 +851,7 @@ public:
     }
     const_local_iterator cbegin(size_type n) const
     {
-        return const_local_iterator(root_.bucket[n], this);
+        return const_local_iterator(root_.bucket[n].root.root, this);
     }
     const_local_iterator cend(size_type n) const
     {
@@ -869,12 +869,7 @@ public:
     
     size_type bucket_size(size_type n) const
     {
-        size_type step = 0;
-        for(size_type i = root_.bucket[n]; i != offset_empty; i = root_.node[i].next)
-        {
-            ++step;
-        }
-        return step;
+        return std::distance(begin(n), end(n));
     }
     
     size_type bucket(key_type const &key) const
@@ -883,7 +878,7 @@ public:
         {
             return 0;
         }
-        return hash_t(get_hasher()(key)) % root_.bucket_count;
+        return get_hasher()(key) % root_.bucket_count;
     }
     
     void reserve(size_type count)
@@ -892,7 +887,7 @@ public:
     }
     void rehash(size_type count)
     {
-        rehash_(typename config_t::unique_type(), std::max<size_type>({8, count, size_type(std::ceil(size() / root_.setting_load_factor))}));
+        rehash_(std::max<size_type>({8, count, size_type(std::ceil(size() / root_.setting_load_factor))}));
     }
     
     void max_load_factor(float ml)
@@ -904,7 +899,7 @@ public:
         root_.setting_load_factor = ml;
         if(root_.size != 0)
         {
-            rehash_(typename config_t::unique_type(), size_type(std::ceil(size() / root_.setting_load_factor)));
+            rehash_(size_type(std::ceil(size() / root_.setting_load_factor)));
         }
     }
     float max_load_factor() const
@@ -1003,7 +998,7 @@ protected:
     
     size_type local_advance_next_(size_type i) const
     {
-        return threaded_rb_tree_move_next(i, deref_node_t(&root_));
+        return threaded_rb_tree_move_next(i, const_deref_node_t(&root_));
     }
     
     template<class iterator_t, class ...args_t> static void construct_one_(iterator_t where, args_t &&...args)
@@ -1078,7 +1073,7 @@ protected:
         size_type size = other->size - other->free_count;
         if(size > 0)
         {
-            rehash_(std::true_type(), size);
+            rehash_(size);
             realloc_(size);
             for(size_type other_i = 0; other_i < other->size; ++other_i)
             {
@@ -1093,10 +1088,10 @@ protected:
                     {
                         construct_one_(root_.value[i].value(), *other->value[other_i].value());
                     }
-                    size_type bucket = get_hasher()(*other->value[i].value()) % root_.bucket_count;
+                    size_type bucket = get_hasher()(get_key_t()(*other->value[i].value())) % root_.bucket_count;
                     stack_t stack;
-                    trb_find_path_for_multi_(stack, root_.bucket[bucket], i);
-                    trb_insert_(stack, root_.bucket[bucket], i);
+                    threaded_rb_tree_find_path_for_multi(root_.bucket[bucket], stack, deref_node_t{&root_}, i, get_offset_comp());
+                    threaded_rb_tree_insert(root_.bucket[bucket], stack, deref_node_t{&root_}, i);
                 }
             }
         }
@@ -1188,7 +1183,7 @@ protected:
             {
                 if(root_.node[i].is_used())
                 {
-                    size_type bucket = get_hasher()(*root_.value[i].value()) % size;
+                    size_type bucket = get_hasher()(get_key_t()(*root_.value[i].value())) % size;
                     stack_t stack;
                     threaded_rb_tree_find_path_for_multi(new_bucket[bucket], stack, deref_node_t{&root_}, i, get_offset_comp());
                     threaded_rb_tree_insert(new_bucket[bucket], stack, deref_node_t{&root_}, i);
@@ -1266,7 +1261,7 @@ protected:
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_offset_comp()))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_key_comp()))
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1292,7 +1287,7 @@ protected:
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_offset_comp()))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_key_comp()))
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1342,7 +1337,7 @@ protected:
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_offset_comp()))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_key_comp()))
         {
             size_type offset = stack.get_index(stack.height - 1);
             threaded_rb_tree_remove(root_.bucket[bucket], stack, deref_node_t{&root_});
@@ -1372,8 +1367,8 @@ protected:
     {
         size_type bucket = get_hasher()(get_key_t()(root_.value[offset])) % root_.bucket_count;
         stack_t stack;
-        trb_find_path_for_remove_(stack, root_.bucket[bucket], offset);
-        trb_remove_impl_(stack, root_.bucket[bucket], offset);
+        threaded_rb_tree_find_path_for_remove(root_.bucket[bucket], stack, deref_node_t{&root_}, offset, get_offset_comp());
+        threaded_rb_tree_remove(root_.bucket[bucket], stack, deref_node_t{&root_});
         destroy_one_(root_.value[offset].value());
         root_.node[offset].set_empty();
         root_.node[offset].left_set_link(root_.free_list);
