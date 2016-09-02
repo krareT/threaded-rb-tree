@@ -185,7 +185,7 @@ protected:
     };
     struct const_deref_node_t
     {
-        node_t &operator()(size_type index) const
+        node_t const &operator()(size_type index) const
         {
             return root_ptr->node[index];
         }
@@ -619,7 +619,6 @@ public:
     //with hint
     iterator insert(const_iterator hint, value_type const &value)
     {
-        return result_<typename config_t::unique_type>(insert_value_(value));
     }
     //with hint
     template<class in_value_t>
@@ -734,7 +733,7 @@ public:
         {
             return local_iterator(offset_empty, this);
         }
-        size_type next = local_advance_next_(offset_type(it.offset));
+        size_type next = local_advance_next_(it.offset);
         remove_offset_(it.offset);
         return local_iterator(next, this);
     }
@@ -780,14 +779,14 @@ public:
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         size_type lower, upper;
-        trb_equal_range_(root_.bucket[bucket], key, lower, upper);
+        threaded_rb_tree_equal_range(root_.bucket[bucket], const_deref_node_t{&root_}, key, const_deref_value_t{&root_}, get_key_t(), get_key_comp(), lower, upper);
         return std::make_pair(local_iterator(lower, this), local_iterator(upper, this));
     }
     pair_clicli_t equal_range(key_type const &key) const
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         size_type lower, upper;
-        trb_equal_range_(root_.bucket[bucket], key, lower, upper);
+        threaded_rb_tree_equal_range(root_.bucket[bucket], const_deref_node_t{&root_}, key, const_deref_value_t{&root_}, get_key_t(), get_key_comp(), lower, upper);
         return std::make_pair(const_local_iterator(lower, this), const_local_iterator(upper, this));
     }
     
@@ -998,7 +997,7 @@ protected:
     
     size_type local_advance_next_(size_type i) const
     {
-        return threaded_rb_tree_move_next(i, const_deref_node_t(&root_));
+        return threaded_rb_tree_move_next(i, const_deref_node_t{&root_});
     }
     
     template<class iterator_t, class ...args_t> static void construct_one_(iterator_t where, args_t &&...args)
@@ -1048,7 +1047,7 @@ protected:
         }
         if(root_.bucket_count != 0)
         {
-            std::fill_n(root_.bucket, root_.bucket_count, offset_empty);
+            std::fill_n(root_.bucket, root_.bucket_count, trb_root_t());
         }
         if(root_.capacity != 0)
         {
@@ -1185,7 +1184,6 @@ protected:
                 {
                     size_type bucket = get_hasher()(get_key_t()(*root_.value[i].value())) % size;
                     stack_t stack;
-                    threaded_rb_tree_find_path_for_multi(new_bucket[bucket], stack, deref_node_t{&root_}, i, get_offset_comp());
                     threaded_rb_tree_insert(new_bucket[bucket], stack, deref_node_t{&root_}, i);
                 }
             }
@@ -1365,7 +1363,6 @@ protected:
     
     void remove_offset_(size_type offset)
     {
-        size_type bucket = get_hasher()(get_key_t()(root_.value[offset])) % root_.bucket_count;
         stack_t stack;
         threaded_rb_tree_find_path_for_remove(root_.bucket[bucket], stack, deref_node_t{&root_}, offset, get_offset_comp());
         threaded_rb_tree_remove(root_.bucket[bucket], stack, deref_node_t{&root_});
@@ -1376,14 +1373,8 @@ protected:
     }
 };
 
-
-template<class key_t, class value_t, class unique_t, class hasher_t, class key_compare_t, class allocator_t>
-struct threaded_rbtree_hash_map_config_t
 {
     typedef key_t key_type;
-    typedef value_t mapped_type;
-    typedef std::pair<key_t const, value_t> value_type;
-    typedef std::pair<key_t, value_t> storage_type;
     typedef hasher_t hasher;
     typedef key_compare_t key_compare;
     typedef allocator_t allocator_type;
@@ -1396,23 +1387,11 @@ struct threaded_rbtree_hash_map_config_t
     }
     template<class in_type> static key_type const &get_key(in_type &&value)
     {
-        return value.first;
     }
 };
-template<class key_t, class value_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<std::pair<key_t const, value_t>>>
-using trb_hash_map = threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::true_type, hasher_t, key_compare_t, allocator_t>>;
 
-template<class key_t, class value_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<std::pair<key_t const, value_t>>>
-using trb_hash_multimap = threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::false_type, hasher_t, key_compare_t, allocator_t>>;
-
-
-template<class key_t, class unique_t, class hasher_t, class key_compare_t, class allocator_t>
-struct threaded_rbtree_hash_set_config_t
 {
     typedef key_t key_type;
-    typedef key_t const mapped_type;
-    typedef key_t const value_type;
-    typedef key_t storage_type;
     typedef hasher_t hasher;
     typedef key_compare_t key_compare;
     typedef allocator_t allocator_type;
@@ -1425,7 +1404,6 @@ struct threaded_rbtree_hash_set_config_t
     }
     template<class in_type> static key_type const &get_key(in_type &&value)
     {
-        return value;
     }
 };
 template<class key_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<key_t>>

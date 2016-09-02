@@ -148,10 +148,10 @@ std::size_t threaded_rb_tree_move_prev(std::size_t node, dereference_t deref)
 template<class node_t, class enable_count_t>
 struct threaded_rb_tree_count_t
 {
-    typedef node_t node_type;
-    typedef typename node_type::index_type index_type;
+    typedef node_t count_node_type;
+    typedef typename count_node_type::index_type count_index_type;
     
-    index_type count;
+    count_index_type count;
     
     threaded_rb_tree_count_t() : count(0)
     {
@@ -165,7 +165,7 @@ struct threaded_rb_tree_count_t
     {
         --count;
     }
-    index_type get_count() const
+    std::size_t get_count() const
     {
         return count;
     }
@@ -173,8 +173,8 @@ struct threaded_rb_tree_count_t
 template<class node_t>
 struct threaded_rb_tree_count_t<node_t, std::false_type>
 {
-    typedef node_t node_type;
-    typedef typename node_type::index_type index_type;
+    typedef node_t count_node_type;
+    typedef typename count_node_type::index_type count_index_type;
     
     void increase_count()
     {
@@ -182,7 +182,7 @@ struct threaded_rb_tree_count_t<node_t, std::false_type>
     void decrease_count()
     {
     }
-    index_type get_count() const
+    std::size_t get_count() const
     {
         return 0;
     }
@@ -191,73 +191,73 @@ struct threaded_rb_tree_count_t<node_t, std::false_type>
 template<class node_t, class enable_most_t>
 struct threaded_rb_tree_most_t
 {
-    typedef node_t node_type;
-    typedef typename node_type::index_type index_type;
+    typedef node_t most_node_type;
+    typedef typename most_node_type::index_type most_index_type;
     
-    index_type left, right;
+    most_index_type left, right;
     
-    threaded_rb_tree_most_t() : left(node_type::nil_sentinel), right(node_type::nil_sentinel)
+    threaded_rb_tree_most_t() : left(most_node_type::nil_sentinel), right(most_node_type::nil_sentinel)
     {
     }
     
     template<class dereference_t>
-    index_type get_left(index_type , dereference_t ) const
+    std::size_t get_left(std::size_t , dereference_t ) const
     {
         return left;
     }
     template<class dereference_t>
-    index_type get_right(index_type , dereference_t ) const
+    std::size_t get_right(std::size_t , dereference_t ) const
     {
         return right;
     }
     void set_left(std::size_t value)
     {
-        left = index_type(value);
+        left = most_index_type(value);
     }
     void set_right(std::size_t value)
     {
-        right = index_type(value);
+        right = most_index_type(value);
     }
     void update_left(std::size_t check, std::size_t value)
     {
         if(check == left)
         {
-            left = index_type(value);
+            left = most_index_type(value);
         }
     }
     void update_right(std::size_t check, std::size_t value)
     {
         if(check == right)
         {
-            right = index_type(value);
+            right = most_index_type(value);
         }
     }
     template<class dereference_t> void detach_left(std::size_t value, dereference_t deref)
     {
         if(value == left)
         {
-            left = index_type(threaded_rb_tree_move_next(left, deref));
+            left = most_index_type(threaded_rb_tree_move_next(left, deref));
         }
     }
     template<class dereference_t> void detach_right(std::size_t value, dereference_t deref)
     {
         if(value == right)
         {
-            right = index_type(threaded_rb_tree_move_prev(right, deref));
+            right = most_index_type(threaded_rb_tree_move_prev(right, deref));
         }
     }
 };
 template<class node_t>
 struct threaded_rb_tree_most_t<node_t, std::false_type>
 {
-    typedef node_t node_type;
-    typedef typename node_type::index_type index_type;
+    typedef node_t most_node_type;
+    typedef typename most_node_type::index_type most_index_type;
     
     template<class dereference_t>
-    index_type get_left(index_type root, dereference_t deref) const
+    std::size_t get_left(std::size_t root, dereference_t deref) const
     {
-        index_type node = root;
-        if(root != node_type::nil_sentinel)
+        std::size_t node = root;
+        if(root != most_node_type::nil_sentinel)
         {
             while(deref(node).left_is_child())
             {
@@ -267,10 +267,10 @@ struct threaded_rb_tree_most_t<node_t, std::false_type>
         return node;
     }
     template<class dereference_t>
-    index_type get_right(index_type root, dereference_t deref) const
+    std::size_t get_right(std::size_t root, dereference_t deref) const
     {
-        index_type node = root;
-        if(root != node_type::nil_sentinel)
+        std::size_t node = root;
+        if(root != most_node_type::nil_sentinel)
         {
             while(deref(node).right_is_child())
             {
@@ -279,24 +279,24 @@ struct threaded_rb_tree_most_t<node_t, std::false_type>
         }
         return node;
     }
-    void set_left(index_type )
+    void set_left(std::size_t )
     {
     }
-    void set_right(index_type )
+    void set_right(std::size_t )
     {
     }
-    void update_left(index_type , index_type )
+    void update_left(std::size_t , std::size_t )
     {
     }
-    void update_right(index_type , index_type )
-    {
-    }
-    template<class dereference_t>
-    void detach_left(index_type , dereference_t )
+    void update_right(std::size_t , std::size_t )
     {
     }
     template<class dereference_t>
-    void detach_right(index_type , dereference_t )
+    void detach_left(std::size_t , dereference_t )
+    {
+    }
+    template<class dereference_t>
+    void detach_right(std::size_t , dereference_t )
     {
     }
 };
@@ -319,15 +319,15 @@ struct threaded_rb_tree_root_t
         index_type root;
     } root;
     
-    index_type get_count() const
+    std::size_t get_count() const
     {
         return root.get_count();
     }
-    template<class dereference_t> index_type get_most_left(dereference_t deref) const
+    template<class dereference_t> std::size_t get_most_left(dereference_t deref) const
     {
         return root.get_left(root.root, deref);
     }
-    template<class dereference_t> index_type get_most_right(dereference_t deref) const
+    template<class dereference_t> std::size_t get_most_right(dereference_t deref) const
     {
         return root.get_right(root.root, deref);
     }
@@ -399,10 +399,9 @@ void threaded_rb_tree_find_path_for_multi(root_t &root,
     std::size_t p = root.root.root;
     while(p != node_type::nil_sentinel)
     {
-        bool is_left = comparator(index, p);
-        stack.push_index(p, is_left);
-        if(is_left)
+        if(comparator(index, p))
         {
+            stack.push_index(p, true);
             if(deref(p).left_is_thread())
             {
                 return;
@@ -411,6 +410,7 @@ void threaded_rb_tree_find_path_for_multi(root_t &root,
         }
         else
         {
+            stack.push_index(p, false);
             if(deref(p).right_is_thread())
             {
                 return;
@@ -1294,13 +1294,13 @@ protected:
         bool operator()(size_type left, size_type right) const
         {
             key_compare &compare = *root_ptr;
-            auto &left_value = config_t::get_value(root_ptr->container, left);
-            auto &right_value = config_t::get_value(root_ptr->container, right);
-            if(compare(config_t::get_key(left_value), config_t::get_key(right_value)))
+            auto &left_key = config_t::get_key(config_t::get_value(root_ptr->container, left));
+            auto &right_key = config_t::get_key(config_t::get_value(root_ptr->container, right));
+            if(compare(left_key, right_key))
             {
                 return true;
             }
-            else if(compare(config_t::get_key(right_value), config_t::get_key(left_value)))
+            else if(compare(right_key, left_key))
             {
                 return false;
             }
@@ -1322,7 +1322,7 @@ public:
         typedef typename threaded_rb_tree_impl::reference reference;
         typedef typename threaded_rb_tree_impl::pointer pointer;
     public:
-        explicit iterator(threaded_rb_tree_impl *in_tree, size_type in_where) : tree(in_tree), where(in_where)
+        explicit iterator(threaded_rb_tree_impl *_tree, size_type _where) : tree(_tree), where(_where)
         {
         }
         iterator(iterator const &) = default;
@@ -1387,7 +1387,7 @@ public:
         typedef typename threaded_rb_tree_impl::pointer pointer;
         typedef typename threaded_rb_tree_impl::const_pointer const_pointer;
     public:
-        explicit const_iterator(threaded_rb_tree_impl const *in_tree, size_type in_where) : tree(in_tree), where(in_where)
+        explicit const_iterator(threaded_rb_tree_impl const *_tree, size_type _where) : tree(_tree), where(_where)
         {
         }
         const_iterator(iterator const &other) : tree(other.tree), where(other.where)
@@ -1453,7 +1453,7 @@ public:
         typedef typename threaded_rb_tree_impl::reference reference;
         typedef typename threaded_rb_tree_impl::pointer pointer;
     public:
-        explicit reverse_iterator(threaded_rb_tree_impl *in_tree, size_type in_where) : tree(in_tree), where(in_where)
+        explicit reverse_iterator(threaded_rb_tree_impl *_tree, size_type _where) : tree(_tree), where(_where)
         {
         }
         explicit reverse_iterator(iterator const &other) : tree(other.tree), where(other.where)
@@ -1526,7 +1526,7 @@ public:
         typedef typename threaded_rb_tree_impl::pointer pointer;
         typedef typename threaded_rb_tree_impl::const_pointer const_pointer;
     public:
-        explicit const_reverse_iterator(threaded_rb_tree_impl const *in_tree, size_type in_where) : tree(in_tree), where(in_where)
+        explicit const_reverse_iterator(threaded_rb_tree_impl const *_tree, size_type _where) : tree(_tree), where(_where)
         {
         }
         explicit const_reverse_iterator(const_iterator const &other) : tree(other.tree), where(other.where)
@@ -1690,7 +1690,7 @@ public:
     iterator insert(const_iterator hint, value_type const &value)
     {
         check_max_size_();
-        return result_<std::false_type>(trb_insert_(typename config_t::unique_type(), value));
+        return iterator(this, trb_insert_(typename config_t::unique_type(), value).first);
     }
     //with hint
     template<class in_value_t>
