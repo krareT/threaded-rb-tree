@@ -48,7 +48,7 @@ std::vector<size_t> make_test(size_t size, size_t split)
     std::vector<size_t> ret;
     for(size_t i = 5; i < 5 + split; ++i)
     {
-        ret.push_back(size_t(std::pow(size, 1.0 / (5 + split) * (i + 1))));
+        ret.push_back(size_t(std::round(std::pow(size, 1.0 / (5 + split) * (i + 1)))));
     }
     return ret;
 }
@@ -212,9 +212,9 @@ public:
                     value.pop_back();
                 }
                 std::chrono::high_resolution_clock::duration d = std::chrono::high_resolution_clock::duration();
-                for(auto v : value)
+                for(auto vi : value)
                 {
-                    d += v;
+                    d += vi;
                 }
                 std::cout << std::chrono::duration_cast<std::chrono::duration<float, std::nano>>(d).count() / value.size() / count[j] << ", ";
             }
@@ -230,15 +230,16 @@ private:
     size_t length;
 };
 
-template<class T> void foo_test(T &t)
+template<class T> void foo_test_t(T &bp)
 {
     typedef typename std::remove_const<T>::type O;
     typename O::key_compare c;
     typename O::storage_type v;
+    typename O::storage_type const cv = v;
     typename O::key_type k;
     O o, oo;
-    auto b = t.cbegin();
-    auto e = t.cend();
+    auto b = bp.cbegin();
+    auto e = bp.cend();
     T o00(c);
     T o03(b, e, c);
     T o06(o);
@@ -249,33 +250,120 @@ template<class T> void foo_test(T &t)
     o = {};
     o.swap(oo);
     o.insert(v);
+    o.insert(cv);
     o.insert(std::move(v));
     o.insert(o.begin(), v);
+    o.insert(o.begin(), cv);
     o.insert(o.begin(), std::move(v));
     o.insert(b, e);
     o.insert({});
     o.emplace(v);
+    o.emplace(cv);
     o.emplace_hint(o.begin(), v);
-    t.find(k);
+    o.emplace_hint(o.begin(), cv);
+    bp.find(k);
     o.erase(o.cbegin());
     o.erase(k);
     o.erase(b, e);
-    t.count(k);
-    t.lower_bound(k);
-    t.upper_bound(k);
-    t.equal_range(k);
-    t.begin();
-    t.cbegin();
-    t.rbegin();
-    t.crbegin();
-    t.end();
-    t.cend();
-    t.rend();
-    t.crend();
-    t.empty();
+    bp.count(k);
+    bp.lower_bound(k);
+    bp.upper_bound(k);
+    bp.equal_range(k);
+    bp.begin();
+    bp.cbegin();
+    bp.rbegin();
+    bp.crbegin();
+    bp.end();
+    bp.cend();
+    bp.rend();
+    bp.crend();
+    bp.empty();
     o.empty();
     o.size();
     o.max_size();
+    bp.beg_i();
+    bp.end_i();
+    bp.rbeg_i();
+    bp.rend_i();
+    bp.next_i(0);
+    bp.prev_i(0);
+    bp.key(0);
+    bp.elem_at(0);
+}
+
+template<class T> void foo_test_h(T &hs)
+{
+    typedef typename std::remove_const<T>::type O;
+    typename O::hasher h;
+    typename O::key_compare ke;
+    typename O::allocator_type a;
+    typename O::storage_type v;
+    typename O::storage_type const cv = v;
+    typename O::key_type k;
+    O o, oo;
+    auto b = hs.cbegin();
+    auto e = hs.cend();
+    auto lb = hs.cbegin(0);
+    auto le = hs.cend(0);
+    T o00(0, h, ke, a);
+    T o01(a);
+    T o02(0, a);
+    T o03(0, h, a);
+    T o04(b, e, 0, h, ke, a);
+    T o05(b, e, 0, a);
+    T o06(b, e, 0, h, a);
+    T o07(o);
+    T o08(o, a);
+    T o09(std::move(o));
+    T o10(std::move(o), a);
+    T o11({}, 0, h, ke, a);
+    T o12({}, 0, a);
+    T o13({}, 0, h, a);
+    o = oo;
+    o = std::move(oo);
+    o = {};
+    o.swap(oo);
+    o.insert(v);
+    o.insert(cv);
+    o.insert(std::move(v));
+    o.insert(o.begin(), v);
+    o.insert(o.begin(), cv);
+    o.insert(o.begin(), std::move(v));
+    o.insert(b, e);
+    o.insert({});
+    o.emplace(v);
+    o.emplace(cv);
+    o.emplace_hint(o.begin(), v);
+    o.emplace_hint(o.begin(), cv);
+    hs.find(k);
+    o.erase(o.cbegin());
+    o.erase(k);
+    o.erase(b, e);
+    o.erase(lb);
+    o.erase(lb, le);
+    hs.count(k);
+    hs.equal_range(k);
+    hs.begin();
+    hs.cbegin();
+    hs.end();
+    hs.cend();
+    hs.empty();
+    o.empty();
+    o.size();
+    o.max_size();
+    while(lb != le)
+    {
+        ++lb;
+    }
+    hs.bucket_count();
+    hs.max_bucket_count();
+    hs.bucket_size(0);
+    hs.bucket(k);
+    o.reserve(0);
+    o.rehash(0);
+    o.max_load_factor(0);
+    o.max_load_factor();
+    o.load_factor();
 }
 
 void foo()
@@ -297,22 +385,56 @@ void foo()
     trb_multiset<int> const t_e;
     trb_multiset<std::string> const t_f;
     
-    foo_test(t_0);
-    foo_test(t_1);
-    foo_test(t_2);
-    foo_test(t_3);
-    foo_test(t_4);
-    foo_test(t_5);
-    foo_test(t_6);
-    foo_test(t_7);
-    foo_test(t_8);
-    foo_test(t_9);
-    foo_test(t_a);
-    foo_test(t_b);
-    foo_test(t_c);
-    foo_test(t_d);
-    foo_test(t_e);
-    foo_test(t_f);
+    foo_test_t(t_0);
+    foo_test_t(t_1);
+    foo_test_t(t_2);
+    foo_test_t(t_3);
+    foo_test_t(t_4);
+    foo_test_t(t_5);
+    foo_test_t(t_6);
+    foo_test_t(t_7);
+    foo_test_t(t_8);
+    foo_test_t(t_9);
+    foo_test_t(t_a);
+    foo_test_t(t_b);
+    foo_test_t(t_c);
+    foo_test_t(t_d);
+    foo_test_t(t_e);
+    foo_test_t(t_f);
+    
+    trb_hash_map<int, int> h_0;
+    trb_hash_map<std::string, std::string> h_1;
+    trb_hash_map<int, int> const h_2;
+    trb_hash_map<std::string, std::string> const h_3;
+    trb_hash_multimap<int, int> h_4;
+    trb_hash_multimap<std::string, std::string> h_5;
+    trb_hash_multimap<int, int> const h_6;
+    trb_hash_multimap<std::string, std::string> const h_7;
+    trb_hash_set<int> h_8;
+    trb_hash_set<std::string> h_9;
+    trb_hash_set<int> const h_a;
+    trb_hash_set<std::string> const h_b;
+    trb_hash_multiset<int> h_c;
+    trb_hash_multiset<std::string> h_d;
+    trb_hash_multiset<int> const h_e;
+    trb_hash_multiset<std::string> const h_f;
+    
+    foo_test_h(h_0);
+    foo_test_h(h_1);
+    foo_test_h(h_2);
+    foo_test_h(h_3);
+    foo_test_h(h_4);
+    foo_test_h(h_5);
+    foo_test_h(h_6);
+    foo_test_h(h_7);
+    foo_test_h(h_8);
+    foo_test_h(h_9);
+    foo_test_h(h_a);
+    foo_test_h(h_b);
+    foo_test_h(h_c);
+    foo_test_h(h_d);
+    foo_test_h(h_e);
+    foo_test_h(h_f);
 }
 
 int main()
@@ -343,7 +465,6 @@ int main()
     typedef trb_hash_set<key<128>>       trb_hash_128   ;
     typedef trb_hash_set<key<200>>       trb_hash_200   ;
     
-    
     typedef std::multiset<key<4  >>           std_mset_4      ;
     typedef std::multiset<key<32 >>           std_mset_32     ;
     typedef std::multiset<key<64 >>           std_mset_64     ;
@@ -365,11 +486,10 @@ int main()
     typedef trb_hash_multiset<key<128>>       trb_mhash_128   ;
     typedef trb_hash_multiset<key<200>>       trb_mhash_200   ;
     
-    
     std::mt19937 mt(0);
     auto mtr = std::uniform_int_distribution<int>(-200000000, 200000000);
-    static constexpr size_t count = 4096000;
-    static constexpr size_t times = 5;
+    static constexpr size_t count = 400000;
+    static constexpr size_t times = 10;
     static constexpr size_t split = 17;
     std::vector<int> v_arr[times];
     
@@ -415,26 +535,26 @@ int main()
     test_all<int, std_set_200    , times>("std_set_200    ", v, count).exec(split);
     test_all<int, std_hash_200   , times>("std_hash_200   ", v, count).exec(split);
     
-    test_all<int, trb_mset_4      , times>("trb_mset_4     ", v, count).exec(split);
-    test_all<int, trb_mhash_4     , times>("trb_mhash_4    ", v, count).exec(split);
-    test_all<int, std_mset_4      , times>("std_mset_4     ", v, count).exec(split);
-    test_all<int, std_mhash_4     , times>("std_mhash_4    ", v, count).exec(split);
-    test_all<int, trb_mset_32     , times>("trb_mset_32    ", v, count).exec(split);
-    test_all<int, trb_mhash_32    , times>("trb_mhash_32   ", v, count).exec(split);
-    test_all<int, std_mset_32     , times>("std_mset_32    ", v, count).exec(split);
-    test_all<int, std_mhash_32    , times>("std_mhash_32   ", v, count).exec(split);
-    test_all<int, trb_mset_64     , times>("trb_mset_64    ", v, count).exec(split);
-    test_all<int, trb_mhash_64    , times>("trb_mhash_64   ", v, count).exec(split);
-    test_all<int, std_mset_64     , times>("std_mset_64    ", v, count).exec(split);
-    test_all<int, std_mhash_64    , times>("std_mhash_64   ", v, count).exec(split);
-    test_all<int, trb_mset_128    , times>("trb_mset_128   ", v, count).exec(split);
-    test_all<int, trb_mhash_128   , times>("trb_mhash_128  ", v, count).exec(split);
-    test_all<int, std_mset_128    , times>("std_mset_128   ", v, count).exec(split);
-    test_all<int, std_mhash_128   , times>("std_mhash_128  ", v, count).exec(split);
-    test_all<int, trb_mset_200    , times>("trb_mset_200   ", v, count).exec(split);
-    test_all<int, trb_mhash_200   , times>("trb_mhash_200  ", v, count).exec(split);
-    test_all<int, std_mset_200    , times>("std_mset_200   ", v, count).exec(split);
-    test_all<int, std_mhash_200   , times>("std_mhash_200  ", v, count).exec(split);
+    test_all<int, trb_mset_4      , times>("trb_mset_4      ", v, count).exec(split);
+    test_all<int, trb_mhash_4     , times>("trb_mhash_4     ", v, count).exec(split);
+    test_all<int, std_mset_4      , times>("std_mset_4      ", v, count).exec(split);
+    test_all<int, std_mhash_4     , times>("std_mhash_4     ", v, count).exec(split);
+    test_all<int, trb_mset_32     , times>("trb_mset_32     ", v, count).exec(split);
+    test_all<int, trb_mhash_32    , times>("trb_mhash_32    ", v, count).exec(split);
+    test_all<int, std_mset_32     , times>("std_mset_32     ", v, count).exec(split);
+    test_all<int, std_mhash_32    , times>("std_mhash_32    ", v, count).exec(split);
+    test_all<int, trb_mset_64     , times>("trb_mset_64     ", v, count).exec(split);
+    test_all<int, trb_mhash_64    , times>("trb_mhash_64    ", v, count).exec(split);
+    test_all<int, std_mset_64     , times>("std_mset_64     ", v, count).exec(split);
+    test_all<int, std_mhash_64    , times>("std_mhash_64    ", v, count).exec(split);
+    test_all<int, trb_mset_128    , times>("trb_mset_128    ", v, count).exec(split);
+    test_all<int, trb_mhash_128   , times>("trb_mhash_128   ", v, count).exec(split);
+    test_all<int, std_mset_128    , times>("std_mset_128    ", v, count).exec(split);
+    test_all<int, std_mhash_128   , times>("std_mhash_128   ", v, count).exec(split);
+    test_all<int, trb_mset_200    , times>("trb_mset_200    ", v, count).exec(split);
+    test_all<int, trb_mhash_200   , times>("trb_mhash_200   ", v, count).exec(split);
+    test_all<int, std_mset_200    , times>("std_mset_200    ", v, count).exec(split);
+    test_all<int, std_mhash_200   , times>("std_mhash_200   ", v, count).exec(split);
 }
 
 
