@@ -234,6 +234,7 @@ template<class T> void foo_test_t(T &bp)
 {
     typedef typename std::remove_const<T>::type O;
     typename O::key_compare c;
+    typename O::container_type a;
     typename O::storage_type v;
     typename O::storage_type const cv = v;
     typename O::key_type k;
@@ -241,10 +242,18 @@ template<class T> void foo_test_t(T &bp)
     auto b = bp.cbegin();
     auto e = bp.cend();
     T o00(c);
+    T o01(a);
+    T o02(c, a);
     T o03(b, e, c);
+    T o04(b, e, a);
+    T o05(b, e, c, a);
     T o06(o);
+    T o07(o, a);
     T o08(std::move(o));
+    T o09(std::move(o), a);
     T o10({}, c);
+    T o11({}, a);
+    T o12({}, c, a);
     o = oo;
     o = std::move(oo);
     o = {};

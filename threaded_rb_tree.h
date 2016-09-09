@@ -1198,6 +1198,7 @@ public:
     typedef typename config_t::mapped_type mapped_type;
     typedef typename config_t::value_type value_type;
     typedef typename config_t::storage_type storage_type;
+    typedef typename config_t::container_type container_type;
     typedef std::size_t size_type;
     typedef std::ptrdiff_t difference_type;
     typedef typename config_t::key_compare key_compare;
@@ -1207,7 +1208,6 @@ public:
     typedef value_type const *const_pointer;
     
 protected:
-    typedef typename config_t::container_type container_type;
     typedef typename config_t::node_type node_type;
     typedef typename node_type::index_type index_type;
     
@@ -1217,7 +1217,10 @@ protected:
     
     struct root_t : public threaded_rb_tree_root_t<node_type, std::true_type, std::true_type>, public key_compare
     {
-        template<class any_key_compare> root_t(any_key_compare &&comp) : key_compare(std::forward<any_key_compare>(comp))
+        template<class any_key_compare, class any_container_type>
+        root_t(any_key_compare &&_comp, any_container_type &&_container)
+        : key_compare(std::forward<any_key_compare>(_comp))
+        , container(std::forward<any_container_type>(_container))
         {
             free = node_type::nil_sentinel;
         }
@@ -1606,30 +1609,53 @@ protected:
     }
 public:
     //empty
-    threaded_rb_tree_impl() : root_(key_compare())
+    threaded_rb_tree_impl() : root_(key_compare(), container_type())
     {
     }
     //empty
-    explicit threaded_rb_tree_impl(key_compare const &comp) : root_(comp)
+    explicit threaded_rb_tree_impl(key_compare const &comp, container_type const &container = container_type()) : root_(comp, container)
+    {
+    }
+    //empty
+    explicit threaded_rb_tree_impl(container_type const &container) : root_(key_compare(), container)
     {
     }
     //range
-    template <class iterator_t> threaded_rb_tree_impl(iterator_t begin, iterator_t end, key_compare const &comp = key_compare()) : root_(comp)
+    template <class iterator_t> threaded_rb_tree_impl(iterator_t begin, iterator_t end, key_compare const &comp = key_compare(), container_type const &container = container_type()) : root_(comp, container)
+    {
+        insert(begin, end);
+    }
+    //range
+    template <class iterator_t> threaded_rb_tree_impl(iterator_t begin, iterator_t end, container_type const &container) : root_(key_compare(), container)
     {
         insert(begin, end);
     }
     //copy
-    threaded_rb_tree_impl(threaded_rb_tree_impl const &other) : root_(other.get_comparator_())
+    threaded_rb_tree_impl(threaded_rb_tree_impl const &other) : root_(other.get_comparator_(), container_type())
     {
-        root_ = other.root_;
+        insert(other.begin(), other.end());
+    }
+    //copy
+    threaded_rb_tree_impl(threaded_rb_tree_impl const &other, container_type const &container) : root_(other.get_comparator_(), container)
+    {
+        insert(other.begin(), other.end());
     }
     //move
-    threaded_rb_tree_impl(threaded_rb_tree_impl &&other) : root_(key_compare())
+    threaded_rb_tree_impl(threaded_rb_tree_impl &&other) : root_(key_compare(), container_type())
     {
-        std::swap(root_, root_);
+        swap(other);
+    }
+    //move
+    threaded_rb_tree_impl(threaded_rb_tree_impl &&other, container_type const &container) : root_(key_compare(), container)
+    {
+        insert(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end()));
     }
     //initializer list
-    threaded_rb_tree_impl(std::initializer_list<value_type> il, key_compare const &comp = key_compare()) : threaded_rb_tree_impl(il.begin(), il.end(), comp)
+    threaded_rb_tree_impl(std::initializer_list<value_type> il, key_compare const &comp = key_compare(), container_type const &container = container_type()) : threaded_rb_tree_impl(il.begin(), il.end(), comp, container)
+    {
+    }
+    //initializer list
+    threaded_rb_tree_impl(std::initializer_list<value_type> il, container_type const &container) : threaded_rb_tree_impl(il.begin(), il.end(), key_compare(), container)
     {
     }
     //destructor
@@ -1664,7 +1690,6 @@ public:
         insert(il.begin(), il.end());
         return *this;
     }
-
     
     void swap(threaded_rb_tree_impl &other)
     {
