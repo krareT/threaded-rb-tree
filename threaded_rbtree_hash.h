@@ -23,13 +23,17 @@ namespace threaded_rbtree_hash_detail
     {
     };
     template<class K, class V>
-    struct is_trivial_expand<std::pair<K, V>> : public std::conditional<std::is_trivial<K>::value && std::is_trivial<V>::value, std::true_type, std::false_type>::type
+    struct is_trivial_expand<std::pair<K, V>> : public std::conditional<std::is_trivial<K>::value && std::is_trivial<V>::value,
+                                                                        std::true_type,
+                                                                        std::false_type>::type
     {
     };
     template<class iterator_t>
     struct get_tag
     {
-        typedef typename std::conditional<is_trivial_expand<typename std::iterator_traits<iterator_t>::value_type>::value, move_trivial_tag, move_assign_tag>::type type;
+        typedef typename std::conditional<is_trivial_expand<typename std::iterator_traits<iterator_t>::value_type>::value,
+                                          move_trivial_tag,
+                                          move_assign_tag>::type type;
     };
 
     template<class iterator_t, class tag_t, class ...args_t> void construct_one(iterator_t where, tag_t, args_t &&...args)
@@ -113,7 +117,8 @@ protected:
     typedef typename allocator_type::template rebind<value_t>::other value_allocator_t;
     struct root_t : public hasher, public key_compare, public bucket_allocator_t, public node_allocator_t, public value_allocator_t
     {
-        template<class any_hasher, class any_key_compare, class any_allocator_type> root_t(any_hasher &&hash, any_key_compare &&compare, any_allocator_type &&alloc)
+        template<class any_hasher, class any_key_compare, class any_allocator_type>
+        root_t(any_hasher &&hash, any_key_compare &&compare, any_allocator_type &&alloc)
         : hasher(std::forward<any_hasher>(hash))
         , key_compare(std::forward<any_key_compare>(compare))
         , bucket_allocator_t(alloc)
@@ -191,19 +196,11 @@ protected:
         }
         root_t const *root_ptr;
     };
-    struct deref_value_t
+    struct deref_key_t
     {
-        storage_type &operator()(size_type index) const
+        key_type const &operator()(size_type index) const
         {
-            return *root_ptr->value[index].value();
-        }
-        root_t *root_ptr;
-    };
-    struct const_deref_value_t
-    {
-        storage_type const &operator()(size_type index) const
-        {
-            return *root_ptr->value[index].value();
+            return config_t::get_key(*root_ptr->value[index].value());
         }
         root_t const *root_ptr;
     };
@@ -271,7 +268,7 @@ public:
         {
             return offset != other.offset || self != other.self;
         }
-    private:
+    protected:
         friend class threaded_rbtree_hash;
         size_type offset;
         threaded_rbtree_hash *self;
@@ -321,7 +318,7 @@ public:
         {
             return offset != other.offset || self != other.self;
         }
-    private:
+    protected:
         friend class threaded_rbtree_hash;
         size_type offset;
         threaded_rbtree_hash const *self;
@@ -366,7 +363,7 @@ public:
         {
             return offset != other.offset || self != other.self;
         }
-    private:
+    protected:
         friend class threaded_rbtree_hash;
         size_type offset;
         threaded_rbtree_hash *self;
@@ -416,7 +413,7 @@ public:
         {
             return offset != other.offset || self != other.self;
         }
-    private:
+    protected:
         friend class threaded_rbtree_hash;
         size_type offset;
         threaded_rbtree_hash const *self;
@@ -463,40 +460,41 @@ public:
         rehash(bucket_count);
     }
     //range
-    template <class iterator_t> threaded_rbtree_hash(iterator_t begin,
-                                                     iterator_t end,
-                                                     size_type bucket_count = 8,
-                                                     hasher const &hash = hasher(),
-                                                     key_compare const &compare = key_compare(),
-                                                     allocator_type const &alloc = allocator_type()
+    template<class iterator_t> threaded_rbtree_hash(iterator_t begin,
+                                                    iterator_t end,
+                                                    size_type bucket_count = 8,
+                                                    hasher const &hash = hasher(),
+                                                    key_compare const &compare = key_compare(),
+                                                    allocator_type const &alloc = allocator_type()
     ) : root_(hash, compare, alloc)
     {
         rehash(bucket_count);
         insert(begin, end);
     }
     //range
-    template <class iterator_t> threaded_rbtree_hash(iterator_t begin,
-                                                     iterator_t end,
-                                                     size_type bucket_count,
-                                                     allocator_type const &alloc
+    template<class iterator_t> threaded_rbtree_hash(iterator_t begin,
+                                                    iterator_t end,
+                                                    size_type bucket_count,
+                                                    allocator_type const &alloc
     ) : root_(hasher(), key_compare(), alloc)
     {
         rehash(bucket_count);
         insert(begin, end);
     }
     //range
-    template <class iterator_t> threaded_rbtree_hash(iterator_t begin,
-                                                     iterator_t end,
-                                                     size_type bucket_count,
-                                                     hasher const &hash,
-                                                     allocator_type const &alloc
+    template<class iterator_t> threaded_rbtree_hash(iterator_t begin,
+                                                    iterator_t end,
+                                                    size_type bucket_count,
+                                                    hasher const &hash,
+                                                    allocator_type const &alloc
     ) : root_(hash, key_compare(), alloc)
     {
         rehash(bucket_count);
         insert(begin, end);
     }
     //copy
-    threaded_rbtree_hash(threaded_rbtree_hash const &other) : root_(other.get_hasher(), other.get_key_comp(), other.get_value_allocator_())
+    threaded_rbtree_hash(threaded_rbtree_hash const &other)
+            : root_(other.get_hasher(), other.get_key_comp(), other.get_value_allocator_())
     {
         copy_all_<false>(&other.root_);
     }
@@ -612,7 +610,8 @@ public:
         return result_<typename config_t::unique_type>(insert_value_(value));
     }
     //single element
-    template<class in_value_t> typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, insert_result_t>::type insert(in_value_t &&value)
+    template<class in_value_t>
+    typename std::enable_if<std::is_convertible<in_value_t, value_type>::value, insert_result_t>::type insert(in_value_t &&value)
     {
         return result_<typename config_t::unique_type>(insert_value_(std::forward<in_value_t>(value)));
     }
@@ -701,23 +700,6 @@ public:
         }
         return root_.value[offset].value()->second;
     }
-    
-    template<class in_key_t, class = typename std::enable_if<std::is_convertible<in_key_t, key_type>::value
-                                                             && config_t::unique_type::value
-                                                             && !std::is_same<key_type, storage_type>::value
-                                                             , void>::type> mapped_type &operator[](in_key_t &&key)
-    {
-        offset_type offset = root_.size;
-        if(root_.size != 0)
-        {
-            offset = find_value_(key);
-        }
-        if(offset == root_.size)
-        {
-            offset = insert_value_(key, mapped_type()).first;
-        }
-        return root_.value[offset].value()->second;
-    }
 
     iterator erase(const_iterator it)
     {
@@ -780,14 +762,28 @@ public:
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         size_type lower, upper;
-        threaded_rb_tree_equal_range(root_.bucket[bucket], const_deref_node_t{&root_}, key, const_deref_value_t{&root_}, get_key_t(), get_key_comp(), lower, upper);
+        threaded_rb_tree_equal_range(root_.bucket[bucket],
+                                     const_deref_node_t{&root_},
+                                     key,
+                                     deref_key_t{&root_},
+                                     get_key_comp(),
+                                     lower,
+                                     upper
+        );
         return std::make_pair(local_iterator(lower, this), local_iterator(upper, this));
     }
     pair_clicli_t equal_range(key_type const &key) const
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         size_type lower, upper;
-        threaded_rb_tree_equal_range(root_.bucket[bucket], const_deref_node_t{&root_}, key, const_deref_value_t{&root_}, get_key_t(), get_key_comp(), lower, upper);
+        threaded_rb_tree_equal_range(root_.bucket[bucket],
+                                     const_deref_node_t{&root_},
+                                     key,
+                                     deref_key_t{&root_},
+                                     get_key_comp(),
+                                     lower,
+                                     upper
+        );
         return std::make_pair(const_local_iterator(lower, this), const_local_iterator(upper, this));
     }
 
@@ -1003,7 +999,10 @@ protected:
 
     template<class iterator_t, class ...args_t> static void construct_one_(iterator_t where, args_t &&...args)
     {
-        threaded_rbtree_hash_detail::construct_one(where, typename threaded_rbtree_hash_detail::get_tag<iterator_t>::type(), std::forward<args_t>(args)...);
+        threaded_rbtree_hash_detail::construct_one(where,
+                                                   typename threaded_rbtree_hash_detail::get_tag<iterator_t>::type(),
+                                                   std::forward<args_t>(args)...
+        );
     }
 
     template<class iterator_t> static void destroy_one_(iterator_t where)
@@ -1014,7 +1013,11 @@ protected:
     template<class iterator_from_t, class iterator_to_t>
     static void move_construct_and_destroy_(iterator_from_t move_begin, iterator_from_t move_end, iterator_to_t to_begin)
     {
-        threaded_rbtree_hash_detail::move_construct_and_destroy(move_begin, move_end, to_begin, typename threaded_rbtree_hash_detail::get_tag<iterator_from_t>::type());
+        threaded_rbtree_hash_detail::move_construct_and_destroy(move_begin,
+                                                                move_end,
+                                                                to_begin,
+                                                                typename threaded_rbtree_hash_detail::get_tag<iterator_from_t>::type()
+        );
     }
 
     void dealloc_all_()
@@ -1244,7 +1247,8 @@ protected:
             {
                 throw std::length_error("threaded_rbtree_hash too long");
             }
-            realloc_(size_type(std::ceil(std::max<float>(root_.capacity * config_t::grow_proportion(root_.capacity), root_.bucket_count * root_.setting_load_factor))));
+            realloc_(size_type(std::ceil(std::max<float>(root_.capacity * config_t::grow_proportion(root_.capacity),
+                                                         root_.bucket_count * root_.setting_load_factor))));
         }
     }
 
@@ -1262,7 +1266,13 @@ protected:
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_key_comp()))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket],
+                                                 stack,
+                                                 deref_node_t{&root_},
+                                                 key,
+                                                 deref_key_t{&root_},
+                                                 get_key_comp())
+        )
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1288,7 +1298,13 @@ protected:
         key_type key = get_key_t()(in, args...);
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_key_comp()))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket],
+                                                 stack,
+                                                 deref_node_t{&root_},
+                                                 key,
+                                                 deref_key_t{&root_},
+                                                 get_key_comp())
+        )
         {
             return {stack.get_index(stack.height - 1), false};
         }
@@ -1330,7 +1346,12 @@ protected:
     size_type find_value_(key_type const &key) const
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
-        size_type offset = threaded_rb_tree_lower_bound(root_.bucket[bucket], deref_node_t{&root_}, key, const_deref_value_t{&root_}, get_key_t(), get_key_comp());
+        size_type offset = threaded_rb_tree_lower_bound(root_.bucket[bucket],
+                                                        deref_node_t{&root_},
+                                                        key,
+                                                        deref_key_t{&root_},
+                                                        get_key_comp()
+        );
         return (offset == offset_empty || get_key_comp()(key, get_key_t()(*root_.value[offset].value()))) ? offset_empty : offset;
     }
 
@@ -1338,7 +1359,13 @@ protected:
     {
         size_type bucket = get_hasher()(key) % root_.bucket_count;
         stack_t stack;
-        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket], stack, deref_node_t{&root_}, key, deref_value_t{&root_}, get_key_t(), get_key_comp()))
+        if(threaded_rb_tree_find_path_for_unique(root_.bucket[bucket],
+                                                 stack,
+                                                 deref_node_t{&root_},
+                                                 key,
+                                                 deref_key_t{&root_},
+                                                 get_key_comp())
+        )
         {
             size_type offset = stack.get_index(stack.height - 1);
             threaded_rb_tree_remove(root_.bucket[bucket], stack, deref_node_t{&root_});
@@ -1430,7 +1457,29 @@ template<class key_t, class hasher_t = std::hash<key_t>, class key_compare_t = s
 using trb_hash_multiset = threaded_rbtree_hash<threaded_rbtree_hash_set_config_t<key_t, std::false_type, hasher_t, key_compare_t, allocator_t>>;
 
 template<class key_t, class value_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<std::pair<key_t const, value_t>>>
-using trb_hash_map = threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::true_type, hasher_t, key_compare_t, allocator_t>>;
+class trb_hash_map : public threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::true_type, hasher_t, key_compare_t, allocator_t>>
+{
+    typedef threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::true_type, hasher_t, key_compare_t, allocator_t>> base_t;
+public:
+    using base_t::base_t;
+    
+    trb_hash_map() : base_t()
+    {
+    }
+    typename base_t::mapped_type &operator[](typename base_t::key_type const &key)
+    {
+        typename base_t::offset_type offset = base_t::root_.size;
+        if(base_t::root_.size != 0)
+        {
+            offset = base_t::find_value_(key);
+        }
+        if(offset == base_t::root_.size)
+        {
+            offset = base_t::insert_value_(key, typename base_t::mapped_type()).first;
+        }
+        return base_t::root_.value[offset].value()->second;
+    }
+};
 
 template<class key_t, class value_t, class hasher_t = std::hash<key_t>, class key_compare_t = std::less<key_t>, class allocator_t = std::allocator<std::pair<key_t const, value_t>>>
 using trb_hash_multimap = threaded_rbtree_hash<threaded_rbtree_hash_map_config_t<key_t, value_t, std::false_type, hasher_t, key_compare_t, allocator_t>>;

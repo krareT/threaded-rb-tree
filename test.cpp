@@ -394,6 +394,9 @@ void foo()
     trb_multiset<int> const t_e;
     trb_multiset<std::string> const t_f;
     
+    t_0[1] = 1;
+    t_1["1"] = "1";
+    
     foo_test_t(t_0);
     foo_test_t(t_1);
     foo_test_t(t_2);
@@ -427,6 +430,9 @@ void foo()
     trb_hash_multiset<std::string> h_d;
     trb_hash_multiset<int> const h_e;
     trb_hash_multiset<std::string> const h_f;
+    
+    h_0[1] = 1;
+    h_1["1"] = "1";
     
     foo_test_h(h_0);
     foo_test_h(h_1);
