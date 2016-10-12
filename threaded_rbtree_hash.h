@@ -880,6 +880,10 @@ public:
     void reserve(size_type count)
     {
         rehash(size_type(std::ceil(count / root_.setting_load_factor)));
+        if(count > root_.capacity && root_.capacity <= max_size())
+        {
+            realloc_(size_type(std::ceil(std::max<float>(count, root_.bucket_count * root_.setting_load_factor))));
+        }
     }
     void rehash(size_type count)
     {
